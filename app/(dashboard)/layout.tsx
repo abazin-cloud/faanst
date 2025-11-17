@@ -7,7 +7,8 @@ import {
   PanelLeft,
   Settings,
   ShoppingCart,
-  Users2
+  Users2,
+  Target
 } from 'lucide-react';
 
 import {
@@ -70,20 +71,24 @@ function DesktopNav() {
           <span className="sr-only">Acme Inc</span>
         </Link>
 
-        <NavItem href="#" label="Dashboard">
+        <NavItem href="/" label="Dashboard">
           <Home className="h-5 w-5" />
+        </NavItem>
+
+        <NavItem href="/leads" label="Leads">
+          <Target className="h-5 w-5" />
+        </NavItem>
+
+        <NavItem href="/customers" label="Customers">
+          <Users2 className="h-5 w-5" />
         </NavItem>
 
         <NavItem href="#" label="Orders">
           <ShoppingCart className="h-5 w-5" />
         </NavItem>
 
-        <NavItem href="/" label="Products">
+        <NavItem href="#" label="Products">
           <Package className="h-5 w-5" />
-        </NavItem>
-
-        <NavItem href="/customers" label="Customers">
-          <Users2 className="h-5 w-5" />
         </NavItem>
 
         <NavItem href="#" label="Analytics">
@@ -127,11 +132,25 @@ function MobileNav() {
             <span className="sr-only">Vercel</span>
           </Link>
           <Link
-            href="#"
+            href="/"
             className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
           >
             <Home className="h-5 w-5" />
             Dashboard
+          </Link>
+          <Link
+            href="/leads"
+            className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+          >
+            <Target className="h-5 w-5" />
+            Leads
+          </Link>
+          <Link
+            href="/customers"
+            className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+          >
+            <Users2 className="h-5 w-5" />
+            Customers
           </Link>
           <Link
             href="#"
@@ -151,15 +170,8 @@ function MobileNav() {
             href="#"
             className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
           >
-            <Users2 className="h-5 w-5" />
-            Customers
-          </Link>
-          <Link
-            href="#"
-            className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
-          >
             <LineChart className="h-5 w-5" />
-            Settings
+            Analytics
           </Link>
         </nav>
       </SheetContent>

@@ -160,8 +160,8 @@ export default async function DashboardPage() {
                   <p className="text-xs mt-1">Click "Add Lead" to get started!</p>
                 </div>
               )}
-              <Button className="w-full mt-4" variant="outline">
-                View All Leads
+              <Button className="w-full mt-4" variant="outline" asChild>
+                <Link href="/leads">View All Leads</Link>
               </Button>
             </div>
           </CardContent>
