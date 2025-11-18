@@ -11,7 +11,7 @@ import {
   pgEnum,
   serial
 } from 'drizzle-orm/pg-core';
-import { count, eq, ilike, desc, and } from 'drizzle-orm';
+import { count, eq, ilike, desc, and, asc } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 
 export const db = drizzle(neon(process.env.POSTGRES_URL!));
@@ -140,18 +140,43 @@ export const tasks = pgTable('tasks', {
   completedAt: timestamp('completed_at', { mode: 'date' })
 });
 
+export const vehicles = pgTable('vehicles', {
+  id: serial('id').primaryKey(),
+  model: text('model').notNull(),
+  finish: text('finish').notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow()
+});
+
 // Type definitions
 export type SelectLead = typeof leads.$inferSelect;
 export type SelectAccount = typeof accounts.$inferSelect;
 export type SelectOpportunity = typeof opportunities.$inferSelect;
 export type SelectNote = typeof notes.$inferSelect;
 export type SelectTask = typeof tasks.$inferSelect;
+export type SelectVehicle = typeof vehicles.$inferSelect;
 
 export const insertLeadSchema = createInsertSchema(leads);
 export const insertAccountSchema = createInsertSchema(accounts);
 export const insertOpportunitySchema = createInsertSchema(opportunities);
 export const insertNoteSchema = createInsertSchema(notes);
 export const insertTaskSchema = createInsertSchema(tasks);
+
+export async function getVehicles(): Promise<SelectVehicle[]> {
+  return await db.select().from(vehicles).orderBy(asc(vehicles.model), asc(vehicles.finish));
+}
+
+export async function replaceVehicles(entries: { model: string; finish: string }[]) {
+  await db.transaction(async (tx) => {
+    await tx.delete(vehicles);
+    if (entries.length === 0) {
+      return;
+    }
+
+    await tx.insert(vehicles).values(
+      entries.map((entry) => ({ model: entry.model, finish: entry.finish }))
+    );
+  });
+}
 
 // Lead functions
 export async function getLeads(limit: number = 10): Promise<SelectLead[]> {

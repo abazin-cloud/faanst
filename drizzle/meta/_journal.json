@@ -1,1 +1,13 @@
-{"version":"7","dialect":"postgresql","entries":[]}
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "1",
+      "when": 1763453774000,
+      "tag": "0001_create_vehicles",
+      "breakpoints": true
+    }
+  ]
+}

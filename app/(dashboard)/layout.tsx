@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  Car,
   Home,
   LineChart,
   Package,
@@ -75,6 +76,10 @@ function DesktopNav() {
           <Home className="h-5 w-5" />
         </NavItem>
 
+        <NavItem href="/configurateur" label="Configurateur">
+          <Car className="h-5 w-5" />
+        </NavItem>
+
         <NavItem href="/leads" label="Leads">
           <Target className="h-5 w-5" />
         </NavItem>
@@ -99,14 +104,14 @@ function DesktopNav() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Link
-              href="#"
+              href="/settings"
               className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8"
             >
               <Settings className="h-5 w-5" />
-              <span className="sr-only">Settings</span>
+              <span className="sr-only">Paramètres</span>
             </Link>
           </TooltipTrigger>
-          <TooltipContent side="right">Settings</TooltipContent>
+          <TooltipContent side="right">Paramètres</TooltipContent>
         </Tooltip>
       </nav>
     </aside>
@@ -137,6 +142,13 @@ function MobileNav() {
           >
             <Home className="h-5 w-5" />
             Dashboard
+          </Link>
+          <Link
+            href="/configurateur"
+            className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+          >
+            <Car className="h-5 w-5" />
+            Configurateur
           </Link>
           <Link
             href="/leads"
@@ -172,6 +184,13 @@ function MobileNav() {
           >
             <LineChart className="h-5 w-5" />
             Analytics
+          </Link>
+          <Link
+            href="/settings"
+            className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+          >
+            <Settings className="h-5 w-5" />
+            Paramètres
           </Link>
         </nav>
       </SheetContent>
