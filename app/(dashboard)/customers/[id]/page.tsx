@@ -28,13 +28,14 @@ const currency = new Intl.NumberFormat('fr-FR', {
 });
 
 type PageProps = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 export default async function AccountDetailPage({ params }: PageProps) {
-  const accountId = parseInt(params.id);
+  const { id } = await params;
+  const accountId = parseInt(id);
 
   if (isNaN(accountId)) {
     notFound();

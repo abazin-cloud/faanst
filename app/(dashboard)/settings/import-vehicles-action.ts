@@ -178,15 +178,15 @@ async function parseXlsx(buffer: Buffer): Promise<VehicleEntry[]> {
     Object.keys(headers).forEach(col => {
       const header = headers[col].toLowerCase().trim();
       if (header.includes('modèle') || header.includes('modele') || header === 'model') {
-        columnMap.model = parseInt(col.charCodeAt(0)) - 65; // A=0, B=1, etc
+        columnMap.model = col.charCodeAt(0) - 65; // A=0, B=1, etc
       } else if (header.includes('finition') || header === 'finish') {
-        columnMap.finish = parseInt(col.charCodeAt(0)) - 65;
+        columnMap.finish = col.charCodeAt(0) - 65;
       } else if (header.includes('prix') || header.includes('price')) {
-        columnMap.basePrice = parseInt(col.charCodeAt(0)) - 65;
+        columnMap.basePrice = col.charCodeAt(0) - 65;
       } else if (header.includes('description')) {
-        columnMap.description = parseInt(col.charCodeAt(0)) - 65;
+        columnMap.description = col.charCodeAt(0) - 65;
       } else if (header.includes('image') || header.includes('photo') || header.includes('url')) {
-        columnMap.imageUrl = parseInt(col.charCodeAt(0)) - 65;
+        columnMap.imageUrl = col.charCodeAt(0) - 65;
       }
     });
 
