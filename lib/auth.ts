@@ -2,12 +2,20 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { User } from 'next-auth';
 
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+if (!authSecret) {
+  throw new Error(
+    'AUTH_SECRET or NEXTAUTH_SECRET must be set for authentication to work.'
+  );
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   // Auth.js does not automatically infer the secret from the environment in
   // every deployment setup. Explicitly passing it prevents production errors
-  // when AUTH_SECRET is defined (as documented in .env.example and Vercel
-  // environment variables).
-  secret: process.env.AUTH_SECRET,
+  // when AUTH_SECRET or NEXTAUTH_SECRET is defined (as documented in
+  // .env.example and Vercel environment variables).
+  secret: authSecret,
   pages: {
     signIn: '/login',
     signOut: '/login',
