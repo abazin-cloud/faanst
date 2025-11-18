@@ -21,3 +21,5 @@ npx drizzle-kit push
 echo ""
 echo "Migration complete!"
 
+
+

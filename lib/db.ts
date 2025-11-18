@@ -144,7 +144,35 @@ export const vehicles = pgTable('vehicles', {
   id: serial('id').primaryKey(),
   model: text('model').notNull(),
   finish: text('finish').notNull(),
+  basePrice: numeric('base_price', { precision: 10, scale: 2 }),
+  description: text('description'),
+  imageUrl: text('image_url'),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow()
+});
+
+export const vehicleOptions = pgTable('vehicle_options', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  category: text('category').notNull(), // 'option' or 'accessoire'
+  price: numeric('price', { precision: 10, scale: 2 }).notNull(),
+  description: text('description'),
+  imageUrl: text('image_url'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow()
+});
+
+export const vehicleConfigurations = pgTable('vehicle_configurations', {
+  id: serial('id').primaryKey(),
+  vehicleId: integer('vehicle_id').notNull(),
+  customerName: text('customer_name'),
+  customerEmail: text('customer_email'),
+  selectedOptions: text('selected_options'), // JSON string of option IDs
+  financingType: text('financing_type'), // 'comptant', 'credit', 'leasing'
+  financingDuration: integer('financing_duration'), // in months
+  financingDownPayment: numeric('financing_down_payment', { precision: 10, scale: 2 }),
+  totalPrice: numeric('total_price', { precision: 10, scale: 2 }).notNull(),
+  status: text('status').notNull().default('brouillon'), // 'brouillon', 'envoye', 'accepte'
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow()
 });
 
 // Type definitions
@@ -154,28 +182,44 @@ export type SelectOpportunity = typeof opportunities.$inferSelect;
 export type SelectNote = typeof notes.$inferSelect;
 export type SelectTask = typeof tasks.$inferSelect;
 export type SelectVehicle = typeof vehicles.$inferSelect;
+export type SelectVehicleOption = typeof vehicleOptions.$inferSelect;
+export type SelectVehicleConfiguration = typeof vehicleConfigurations.$inferSelect;
 
 export const insertLeadSchema = createInsertSchema(leads);
 export const insertAccountSchema = createInsertSchema(accounts);
 export const insertOpportunitySchema = createInsertSchema(opportunities);
 export const insertNoteSchema = createInsertSchema(notes);
 export const insertTaskSchema = createInsertSchema(tasks);
+export const insertVehicleSchema = createInsertSchema(vehicles);
+export const insertVehicleOptionSchema = createInsertSchema(vehicleOptions);
+export const insertVehicleConfigurationSchema = createInsertSchema(vehicleConfigurations);
 
 export async function getVehicles(): Promise<SelectVehicle[]> {
   return await db.select().from(vehicles).orderBy(asc(vehicles.model), asc(vehicles.finish));
 }
 
-export async function replaceVehicles(entries: { model: string; finish: string }[]) {
-  await db.transaction(async (tx) => {
-    await tx.delete(vehicles);
-    if (entries.length === 0) {
-      return;
-    }
-
-    await tx.insert(vehicles).values(
-      entries.map((entry) => ({ model: entry.model, finish: entry.finish }))
+export async function replaceVehicles(entries: Array<{
+  model: string;
+  finish: string;
+  basePrice?: number | null;
+  description?: string | null;
+  imageUrl?: string | null;
+}>) {
+  // Delete all existing vehicles
+  await db.delete(vehicles);
+  
+  // Insert new vehicles if any
+  if (entries.length > 0) {
+    await db.insert(vehicles).values(
+      entries.map((entry) => ({
+        model: entry.model,
+        finish: entry.finish,
+        basePrice: entry.basePrice?.toString() || null,
+        description: entry.description || null,
+        imageUrl: entry.imageUrl || null,
+      }))
     );
-  });
+  }
 }
 
 // Lead functions
@@ -320,4 +364,60 @@ export async function updateTask(id: number, data: Partial<typeof tasks.$inferIn
 
 export async function deleteTaskById(id: number) {
   await db.delete(tasks).where(eq(tasks.id, id));
+}
+
+// Vehicle Options functions
+export async function getVehicleOptions(): Promise<SelectVehicleOption[]> {
+  return await db
+    .select()
+    .from(vehicleOptions)
+    .orderBy(asc(vehicleOptions.category), asc(vehicleOptions.name));
+}
+
+export async function getVehicleOptionsByCategory(category: string): Promise<SelectVehicleOption[]> {
+  return await db
+    .select()
+    .from(vehicleOptions)
+    .where(eq(vehicleOptions.category, category))
+    .orderBy(asc(vehicleOptions.name));
+}
+
+export async function createVehicleOption(data: typeof vehicleOptions.$inferInsert) {
+  const [newOption] = await db.insert(vehicleOptions).values(data).returning();
+  return newOption;
+}
+
+export async function deleteVehicleOptionById(id: number) {
+  await db.delete(vehicleOptions).where(eq(vehicleOptions.id, id));
+}
+
+// Vehicle Configuration functions
+export async function getVehicleConfigurations(): Promise<SelectVehicleConfiguration[]> {
+  return await db
+    .select()
+    .from(vehicleConfigurations)
+    .orderBy(desc(vehicleConfigurations.createdAt));
+}
+
+export async function getVehicleConfigurationById(id: number): Promise<SelectVehicleConfiguration | undefined> {
+  const result = await db.select().from(vehicleConfigurations).where(eq(vehicleConfigurations.id, id));
+  return result[0];
+}
+
+export async function createVehicleConfiguration(data: typeof vehicleConfigurations.$inferInsert) {
+  const [newConfig] = await db.insert(vehicleConfigurations).values(data).returning();
+  return newConfig;
+}
+
+export async function updateVehicleConfiguration(id: number, data: Partial<typeof vehicleConfigurations.$inferInsert>) {
+  const [updatedConfig] = await db
+    .update(vehicleConfigurations)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(vehicleConfigurations.id, id))
+    .returning();
+  return updatedConfig;
+}
+
+export async function deleteVehicleConfigurationById(id: number) {
+  await db.delete(vehicleConfigurations).where(eq(vehicleConfigurations.id, id));
 }
