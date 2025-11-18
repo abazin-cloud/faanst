@@ -109,7 +109,7 @@ export default async function CustomersPage() {
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>
                         <Link href={`/customers/${account.id}`}>
-                          <ExternalLink className="h-4 w-4" />
+                          Voir le détail
                         </Link>
                       </Button>
                     </TableCell>

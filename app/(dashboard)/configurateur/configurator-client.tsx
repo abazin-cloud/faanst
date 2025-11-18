@@ -33,6 +33,7 @@ import {
   ShieldCheck,
   Sparkles
 } from 'lucide-react';
+import { SaveConfigurationDialog } from './save-configuration-dialog';
 
 const currency = new Intl.NumberFormat('fr-FR', {
   style: 'currency',
@@ -48,9 +49,10 @@ const steps = [
 
 export type VehicleConfiguratorClientProps = {
   vehicles: SelectVehicle[];
+  preselectedAccountId?: number;
 };
 
-export function VehicleConfiguratorClient({ vehicles }: VehicleConfiguratorClientProps) {
+export function VehicleConfiguratorClient({ vehicles, preselectedAccountId }: VehicleConfiguratorClientProps) {
   const fallbackModel = VEHICLE_MODELS[0];
   const availableModelNames = useMemo(() => {
     if (vehicles.length > 0) {
@@ -231,7 +233,9 @@ export function VehicleConfiguratorClient({ vehicles }: VehicleConfiguratorClien
         totalMonthly,
         selectedOptionEntities,
         selectedAccessoryEntities,
-        handleGeneratePdf
+        handleGeneratePdf,
+        selectedColor,
+        preselectedAccountId
       })}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -287,110 +291,165 @@ function renderStepContent(props: {
   selectedOptionEntities: VehicleOption[];
   selectedAccessoryEntities: VehicleAccessory[];
   handleGeneratePdf: () => void;
+  selectedColor?: (typeof VEHICLE_MODELS)[number]['colors'][number];
+  preselectedAccountId?: number;
 }) {
   switch (props.currentStep) {
     case 1:
       return (
-        <Card>
-          <CardHeader className="space-y-1">
-            <CardTitle>Étape 1 · Modèle & finition</CardTitle>
-            <CardDescription>
-              Sélectionnez une combinaison importée depuis vos fichiers Excel (colonne A/B).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Modèle</Label>
-                <Select value={props.selectedModelName} onValueChange={props.setSelectedModelName}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir un modèle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {props.availableModelNames.map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Finition</Label>
-                <Select value={props.selectedFinishName} onValueChange={props.setSelectedFinishName}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir une finition" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getFinishOptionsForModel(
-                      props.vehicles,
-                      props.selectedModelName,
-                      props.selectedModel
-                    ).map((finish) => (
-                      <SelectItem key={finish} value={finish}>
-                        {finish}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Couleur carrosserie</Label>
-                <Select value={props.selectedColorId} onValueChange={props.setSelectedColorId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choisir une couleur" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {props.selectedModel.colors.map((color) => (
-                      <SelectItem key={color.id} value={color.id}>
-                        {color.name} ({color.price === 0 ? 'Incluse' : currency.format(color.price)})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="rounded-lg border p-3 space-y-2">
-                <p className="text-sm font-semibold">Points forts</p>
-                <div className="flex flex-wrap gap-2">
-                  {props.selectedModel.highlights.map((item) => (
-                    <Badge key={item} variant="secondary">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
+        <div className="space-y-4">
+          {props.vehicles.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Car className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  Aucun véhicule disponible. Veuillez importer des véhicules dans les paramètres.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <Card>
+                <CardHeader className="space-y-1">
+                  <CardTitle>Étape 1 · Modèle & finition</CardTitle>
+                  <CardDescription>
+                    Sélectionnez votre véhicule parmi les modèles disponibles
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {props.vehicles.map((vehicle) => {
+                      const isSelected = props.selectedModelName === vehicle.model && props.selectedFinishName === vehicle.finish;
+                      return (
+                        <Card
+                          key={vehicle.id}
+                          className={`cursor-pointer transition-all overflow-hidden ${
+                            isSelected
+                              ? 'ring-2 ring-primary bg-primary/5'
+                              : 'hover:shadow-lg hover:ring-1 hover:ring-primary/20'
+                          }`}
+                          onClick={() => {
+                            props.setSelectedModelName(vehicle.model);
+                            props.setSelectedFinishName(vehicle.finish || '');
+                          }}
+                        >
+                          {vehicle.imageUrl && (
+                            <div className="relative h-48 w-full overflow-hidden bg-muted">
+                              <img
+                                src={vehicle.imageUrl}
+                                alt={`${vehicle.model} ${vehicle.finish}`}
+                                className="h-full w-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                              {isSelected && (
+                                <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5">
+                                  <CheckCircle2 className="h-5 w-5" />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-lg flex items-center justify-between">
+                              {vehicle.model}
+                              {isSelected && !vehicle.imageUrl && (
+                                <CheckCircle2 className="h-5 w-5 text-primary" />
+                              )}
+                            </CardTitle>
+                            <CardDescription className="text-sm">{vehicle.finish}</CardDescription>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            {vehicle.description && (
+                              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                                {vehicle.description}
+                              </p>
+                            )}
+                            <div className="flex items-center justify-between pt-2 border-t">
+                              <span className="text-xs text-muted-foreground">Prix de base</span>
+                              <span className="text-lg font-bold">
+                                {vehicle.basePrice ? currency.format(Number(vehicle.basePrice)) : 'Sur demande'}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <InfoTile
-                icon={<BatteryCharging className="h-5 w-5" />}
-                title={props.selectedModel.range}
-                description="Autonomie mixte"
-              />
-              <InfoTile
-                icon={<Sparkles className="h-5 w-5" />}
-                title={props.selectedModel.power}
-                description="Puissance cumulée"
-              />
-              <InfoTile
-                icon={<Leaf className="h-5 w-5" />}
-                title={props.selectedModel.charging}
-                description="Temps de charge"
-              />
-            </div>
+              {/* Détails du véhicule sélectionné */}
+              {props.selectedModelName && props.selectedFinishName && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Configuration de votre véhicule</CardTitle>
+                    <CardDescription>
+                      {props.selectedModelName} - {props.selectedFinishName}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                      <Label>Couleur carrosserie</Label>
+                      <Select value={props.selectedColorId} onValueChange={props.setSelectedColorId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choisir une couleur" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {props.selectedModel.colors.map((color) => (
+                            <SelectItem key={color.id} value={color.id}>
+                              {color.name} ({color.price === 0 ? 'Incluse' : currency.format(color.price)})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-            {props.selectedFinish && (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">Finition {props.selectedFinish.name}</p>
-                <ul className="list-disc pl-5 text-sm text-muted-foreground grid gap-1">
-                  {props.selectedFinish.highlights.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    <div className="rounded-lg border p-3 space-y-2">
+                      <p className="text-sm font-semibold">Points forts</p>
+                      <div className="flex flex-wrap gap-2">
+                        {props.selectedModel.highlights.map((item) => (
+                          <Badge key={item} variant="secondary">
+                            {item}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <InfoTile
+                        icon={<BatteryCharging className="h-5 w-5" />}
+                        title={props.selectedModel.range}
+                        description="Autonomie mixte"
+                      />
+                      <InfoTile
+                        icon={<Sparkles className="h-5 w-5" />}
+                        title={props.selectedModel.power}
+                        description="Puissance cumulée"
+                      />
+                      <InfoTile
+                        icon={<Leaf className="h-5 w-5" />}
+                        title={props.selectedModel.charging}
+                        description="Temps de charge"
+                      />
+                    </div>
+
+                    {props.selectedFinish && props.selectedFinish.highlights.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold">Finition {props.selectedFinish.name}</p>
+                        <ul className="list-disc pl-5 text-sm text-muted-foreground grid gap-1">
+                          {props.selectedFinish.highlights.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
       );
     case 2:
       return (
@@ -622,9 +681,27 @@ function renderStepContent(props: {
                   ))}
                 </ul>
               </div>
-              <Button className="w-full" variant="secondary">
-                Enregistrer cette configuration
-              </Button>
+              <SaveConfigurationDialog
+                configurationData={{
+                  vehicleId: 1, // TODO: gérer dynamiquement si nécessaire
+                  modelName: props.selectedModelName,
+                  finishName: props.selectedFinish?.name ?? '',
+                  colorName: props.selectedColor?.name ?? 'Standard',
+                  selectedOptions: props.selectedOptions,
+                  selectedAccessories: props.selectedAccessories,
+                  financingType: props.selectedFinancing.id,
+                  financingDuration: props.selectedFinancing.months,
+                  financingDownPayment: props.downPayment,
+                  insurancePlan: {
+                    id: props.selectedInsurance.id,
+                    name: props.selectedInsurance.name,
+                    monthlyPrice: props.selectedInsurance.monthlyPrice
+                  },
+                  monthlyPayment: props.monthlyPayment,
+                  totalPrice: props.totalBeforeServices
+                }}
+                preselectedAccountId={props.preselectedAccountId}
+              />
             </CardContent>
           </Card>
 

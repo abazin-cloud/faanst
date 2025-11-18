@@ -9,12 +9,40 @@ import {
   integer,
   timestamp,
   pgEnum,
-  serial
+  serial,
+  primaryKey
 } from 'drizzle-orm/pg-core';
 import { count, eq, ilike, desc, and, asc } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 
 export const db = drizzle(neon(process.env.POSTGRES_URL!));
+
+// Tables d'authentification
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  name: text('name'),
+  email: text('email').notNull().unique(),
+  password: text('password').notNull(),
+  emailVerified: timestamp('email_verified', { mode: 'date' }),
+  image: text('image'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow()
+});
+
+export const verificationTokens = pgTable('verification_tokens', {
+  identifier: text('identifier').notNull(),
+  token: text('token').notNull(),
+  expires: timestamp('expires', { mode: 'date' }).notNull()
+}, (vt) => ({
+  compoundKey: primaryKey({ columns: [vt.identifier, vt.token] })
+}));
+
+export const sessions = pgTable('sessions', {
+  id: serial('id').primaryKey(),
+  sessionToken: text('session_token').notNull().unique(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  expires: timestamp('expires', { mode: 'date' }).notNull()
+});
 
 export const statusEnum = pgEnum('status', ['active', 'inactive', 'archived']);
 export const leadStatusEnum = pgEnum('lead_status', ['hot', 'warm', 'cold']);
@@ -163,12 +191,19 @@ export const vehicleOptions = pgTable('vehicle_options', {
 export const vehicleConfigurations = pgTable('vehicle_configurations', {
   id: serial('id').primaryKey(),
   vehicleId: integer('vehicle_id').notNull(),
+  accountId: integer('account_id'),
   customerName: text('customer_name'),
   customerEmail: text('customer_email'),
+  modelName: text('model_name'),
+  finishName: text('finish_name'),
+  colorName: text('color_name'),
   selectedOptions: text('selected_options'), // JSON string of option IDs
+  selectedAccessories: text('selected_accessories'), // JSON string of accessory IDs
   financingType: text('financing_type'), // 'comptant', 'credit', 'leasing'
   financingDuration: integer('financing_duration'), // in months
   financingDownPayment: numeric('financing_down_payment', { precision: 10, scale: 2 }),
+  insurancePlan: text('insurance_plan'), // JSON string of insurance details
+  monthlyPayment: numeric('monthly_payment', { precision: 10, scale: 2 }),
   totalPrice: numeric('total_price', { precision: 10, scale: 2 }).notNull(),
   status: text('status').notNull().default('brouillon'), // 'brouillon', 'envoye', 'accepte'
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow(),
@@ -420,4 +455,73 @@ export async function updateVehicleConfiguration(id: number, data: Partial<typeo
 
 export async function deleteVehicleConfigurationById(id: number) {
   await db.delete(vehicleConfigurations).where(eq(vehicleConfigurations.id, id));
+}
+
+export async function getVehicleConfigurationsByAccountId(accountId: number): Promise<SelectVehicleConfiguration[]> {
+  return await db
+    .select()
+    .from(vehicleConfigurations)
+    .where(eq(vehicleConfigurations.accountId, accountId))
+    .orderBy(desc(vehicleConfigurations.createdAt));
+}
+
+// User authentication functions
+export type SelectUser = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+
+export async function getUserByEmail(email: string): Promise<SelectUser | undefined> {
+  const result = await db.select().from(users).where(eq(users.email, email));
+  return result[0];
+}
+
+export async function getUserById(id: number): Promise<SelectUser | undefined> {
+  const result = await db.select().from(users).where(eq(users.id, id));
+  return result[0];
+}
+
+export async function createUser(data: InsertUser) {
+  const [user] = await db.insert(users).values(data).returning();
+  return user;
+}
+
+export async function updateUser(id: number, data: Partial<InsertUser>) {
+  const [updatedUser] = await db
+    .update(users)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning();
+  return updatedUser;
+}
+
+// Verification tokens functions
+export async function createVerificationToken(identifier: string, token: string, expires: Date) {
+  await db.insert(verificationTokens).values({
+    identifier,
+    token,
+    expires
+  });
+}
+
+export async function getVerificationToken(identifier: string, token: string) {
+  const result = await db
+    .select()
+    .from(verificationTokens)
+    .where(
+      and(
+        eq(verificationTokens.identifier, identifier),
+        eq(verificationTokens.token, token)
+      )
+    );
+  return result[0];
+}
+
+export async function deleteVerificationToken(identifier: string, token: string) {
+  await db
+    .delete(verificationTokens)
+    .where(
+      and(
+        eq(verificationTokens.identifier, identifier),
+        eq(verificationTokens.token, token)
+      )
+    );
 }

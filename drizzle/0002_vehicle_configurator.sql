@@ -54,3 +54,5 @@ INSERT INTO vehicle_options (name, category, price, description) VALUES
 COMMENT ON TABLE vehicle_options IS 'Options et accessoires disponibles pour les véhicules';
 COMMENT ON TABLE vehicle_configurations IS 'Configurations de véhicules sauvegardées par les clients';
 
+
+
