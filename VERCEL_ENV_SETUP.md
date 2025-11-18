@@ -148,3 +148,4 @@ Pour plus d'infos: https://authjs.dev/getting-started/deployment
 - Les secrets doivent être uniquement dans Vercel Environment Variables
 - Ajoutez `.env.local` dans `.gitignore`
 
+

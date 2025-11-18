@@ -164,3 +164,4 @@ DELETE FROM accounts WHERE email = 'jean@test.fr';
 Vous avez maintenant un système complet de gestion de configurations liées aux comptes clients. Bon travail ! 🚀
 
 
+

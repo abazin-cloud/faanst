@@ -38,3 +38,4 @@ COMMENT ON TABLE users IS 'Table des utilisateurs du CRM';
 COMMENT ON TABLE verification_tokens IS 'Tokens de vérification pour la validation des emails';
 COMMENT ON TABLE sessions IS 'Sessions NextAuth pour la gestion de l\'authentification';
 
+

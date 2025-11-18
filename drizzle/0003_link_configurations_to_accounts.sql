@@ -21,3 +21,4 @@ COMMENT ON TABLE vehicle_configurations IS 'Configurations de véhicules sauvega
 COMMENT ON COLUMN vehicle_configurations.account_id IS 'ID du compte client associé à cette configuration';
 
 
+

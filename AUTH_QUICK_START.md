@@ -127,3 +127,4 @@ Consultez `AUTH_SETUP_GUIDE.md` pour :
 
 **Tout est configuré ! Vous pouvez maintenant vous connecter à votre CRM. 🎉**
 
+
