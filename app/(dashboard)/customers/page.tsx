@@ -102,7 +102,9 @@ export default async function CustomersPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {new Date(account.createdAt).toLocaleDateString('fr-FR')}
+                      {account.createdAt
+                        ? new Date(account.createdAt).toLocaleDateString('fr-FR')
+                        : '—'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>

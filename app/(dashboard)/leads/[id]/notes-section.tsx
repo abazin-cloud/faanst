@@ -75,13 +75,15 @@ export function NotesSection({ leadId, notes }: NotesSectionProps) {
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">{note.createdBy}</span>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(note.createdAt).toLocaleDateString('fr-FR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
+                  {note.createdAt
+                    ? new Date(note.createdAt).toLocaleDateString('fr-FR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : 'Date indisponible'}
                 </span>
               </div>
               <p className="text-sm whitespace-pre-wrap">{note.content}</p>
