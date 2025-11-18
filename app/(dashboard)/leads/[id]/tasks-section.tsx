@@ -179,13 +179,17 @@ export function TasksSection({ leadId, tasks }: TasksSectionProps) {
                 <p className="text-sm text-muted-foreground mb-2">{task.description}</p>
               )}
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                {task.dueDate && (
+                {task.dueDate ? (
                   <span>
-                    Échéance: {new Date(task.dueDate).toLocaleDateString('fr-FR')}
+                    Échéance:{' '}
+                    {new Date(task.dueDate).toLocaleDateString('fr-FR')}
                   </span>
-                )}
+                ) : null}
                 <span>
-                  Créé le {new Date(task.createdAt).toLocaleDateString('fr-FR')}
+                  Créé le{' '}
+                  {task.createdAt
+                    ? new Date(task.createdAt).toLocaleDateString('fr-FR')
+                    : 'Date indisponible'}
                 </span>
               </div>
             </div>

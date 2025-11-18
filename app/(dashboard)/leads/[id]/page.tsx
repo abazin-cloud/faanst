@@ -11,13 +11,14 @@ import { NotesSection } from './notes-section';
 import { TasksSection } from './tasks-section';
 
 interface LeadDetailPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
-  const leadId = parseInt(params.id);
+  const { id } = await params;
+  const leadId = parseInt(id);
   const lead = await getLeadById(leadId);
 
   if (!lead) {
@@ -76,7 +77,10 @@ export default async function LeadDetailPage({ params }: LeadDetailPageProps) {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{lead.companyName}</h1>
             <p className="text-muted-foreground">
-              Lead créé le {new Date(lead.createdAt).toLocaleDateString('fr-FR')}
+              Lead créé le{' '}
+              {lead.createdAt
+                ? new Date(lead.createdAt).toLocaleDateString('fr-FR')
+                : 'Date indisponible'}
             </p>
           </div>
         </div>

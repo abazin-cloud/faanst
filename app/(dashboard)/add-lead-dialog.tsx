@@ -23,7 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle } from 'lucide-react';
 import { addLead } from './actions';
 
-export function AddLeadDialog(): JSX.Element {
+export function AddLeadDialog() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState('cold');

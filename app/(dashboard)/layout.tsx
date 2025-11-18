@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  Car,
   Home,
   LineChart,
   Package,
@@ -75,6 +76,10 @@ function DesktopNav() {
           <Home className="h-5 w-5" />
         </NavItem>
 
+        <NavItem href="/configurateur" label="Configurateur">
+          <Car className="h-5 w-5" />
+        </NavItem>
+
         <NavItem href="/leads" label="Leads">
           <Target className="h-5 w-5" />
         </NavItem>
@@ -137,6 +142,13 @@ function MobileNav() {
           >
             <Home className="h-5 w-5" />
             Dashboard
+          </Link>
+          <Link
+            href="/configurateur"
+            className="flex items-center gap-4 px-2.5 text-muted-foreground hover:text-foreground"
+          >
+            <Car className="h-5 w-5" />
+            Configurateur
           </Link>
           <Link
             href="/leads"
