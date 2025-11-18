@@ -15,7 +15,18 @@ import {
 import { count, eq, ilike, desc, and, asc } from 'drizzle-orm';
 import { createInsertSchema } from 'drizzle-zod';
 
-export const db = drizzle(neon(process.env.POSTGRES_URL!));
+const connectionString =
+  process.env.POSTGRES_URL ??
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_PRISMA_URL;
+
+if (!connectionString) {
+  throw new Error(
+    'Database connection string missing: set POSTGRES_URL (or DATABASE_URL/POSTGRES_PRISMA_URL)'
+  );
+}
+
+export const db = drizzle(neon(connectionString));
 
 // Tables d'authentification
 export const users = pgTable('users', {
