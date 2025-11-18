@@ -1,3 +1,4 @@
+import { authSecret as resolvedAuthSecret } from './auth-secret';
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { User } from 'next-auth';
@@ -5,9 +6,9 @@ import type { User } from 'next-auth';
 export const { handlers, signIn, signOut, auth } = NextAuth({
   // Auth.js does not automatically infer the secret from the environment in
   // every deployment setup. Explicitly passing it prevents production errors
-  // when AUTH_SECRET is defined (as documented in .env.example and Vercel
-  // environment variables).
-  secret: process.env.AUTH_SECRET,
+  // when AUTH_SECRET or NEXTAUTH_SECRET is defined (as documented in
+  // .env.example and Vercel environment variables).
+  secret: resolvedAuthSecret,
   pages: {
     signIn: '/login',
     signOut: '/login',
