@@ -5,6 +5,7 @@ import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useMemo,
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -83,6 +84,36 @@ export function VehicleConfiguratorClient({ vehicles, preselectedAccountId }: Ve
   const [insuranceId, setInsuranceId] = useState(INSURANCE_PLANS[1].id);
   const [currentStep, setCurrentStep] = useState(1);
 
+  // États pour les filtres de l'étape 1
+  const [modelFilter, setModelFilter] = useState<string>('all');
+  const [finishFilter, setFinishFilter] = useState<string>('all');
+  const [searchFilter, setSearchFilter] = useState<string>('');
+
+  // Filtres uniques pour les dropdowns
+  const uniqueModels = useMemo(() => 
+    Array.from(new Set(vehicles.map(v => v.model).filter(Boolean))).sort(),
+    [vehicles]
+  );
+  
+  const uniqueFinishes = useMemo(() => 
+    Array.from(new Set(vehicles.map(v => v.finish).filter(Boolean))).sort(),
+    [vehicles]
+  );
+
+  // Véhicules filtrés
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(vehicle => {
+      const matchesModel = modelFilter === 'all' || vehicle.model === modelFilter;
+      const matchesFinish = finishFilter === 'all' || vehicle.finish === finishFilter;
+      const matchesSearch = searchFilter === '' ||
+        vehicle.model?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        vehicle.finish?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+        vehicle.description?.toLowerCase().includes(searchFilter.toLowerCase());
+
+      return matchesModel && matchesFinish && matchesSearch;
+    });
+  }, [vehicles, modelFilter, finishFilter, searchFilter]);
+
   const selectedModel = useMemo(() => {
     const staticModel = VEHICLE_MODELS.find((model) => model.name === selectedModelName);
     if (staticModel) {
@@ -156,48 +187,250 @@ export function VehicleConfiguratorClient({ vehicles, preselectedAccountId }: Ve
   const canGoForward =
     currentStep === 1 ? Boolean(selectedModelName && selectedFinishName) : currentStep < steps.length;
 
-  const handleGeneratePdf = () => {
-    const pdfLines = buildPdfLines({
-      model: selectedModelName,
-      finish: selectedFinish?.name ?? 'NC',
-      color: selectedColor?.name ?? 'Standard',
+  const handleGeneratePdf = async () => {
+    try {
+      // Trouver le véhicule de la base de données correspondant
+      const selectedDbVehicle = vehicles.find(
+        v => v.model === selectedModelName && v.finish === selectedFinishName
+      );
+
+      // Préparer les données pour l'API
+      const vehicleData = {
+        model: selectedModelName,
+        finish: selectedFinish?.name ?? 'NC',
+        basePrice: baseVehiclePrice,
+        description: selectedDbVehicle?.description || '',
+        imageUrl: selectedDbVehicle?.imageUrl || null
+      };
+
+      const optionsData = [
+        ...selectedOptionEntities.map(opt => ({
+          name: opt.name,
+          description: opt.description,
+          price: opt.price,
+          category: 'option'
+        })),
+        ...selectedAccessoryEntities.map(acc => ({
+          name: acc.name,
+          description: acc.description,
+          price: acc.price,
+          category: 'accessoire'
+        }))
+      ];
+
+      const financingData = {
+        type: selectedFinancing.id === 'cash' ? 'comptant' : 
+              selectedFinancing.id === 'loan' ? 'credit' : 'leasing',
+        duration: selectedFinancing.months,
+        downPayment: downPayment
+      };
+
+      const customerData = {
+        name: 'Client',
+        email: 'client@example.com'
+      };
+
+      // Appeler l'API de génération de PDF
+      const response = await fetch('/api/configurateur/generate-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vehicle: vehicleData,
+          options: optionsData,
+          financing: financingData,
+          customer: customerData,
+          totalPrice: totalBeforeServices,
+        }),
+      });
+
+      if (response.ok) {
+        const htmlContent = await response.text();
+        
+        // Create a blob with the HTML content
+        const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Open the blob URL in a new window
+        const printWindow = window.open(blobUrl, '_blank');
+        
+        if (printWindow) {
+          // Wait for the window to load completely
+          const checkLoaded = setInterval(() => {
+            if (printWindow.document.readyState === 'complete') {
+              clearInterval(checkLoaded);
+              setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+                // Clean up the blob URL after printing
+                setTimeout(() => {
+                  URL.revokeObjectURL(blobUrl);
+                }, 1000);
+              }, 1000);
+            }
+          }, 100);
+          
+          // Cleanup after 30 seconds if something goes wrong
+          setTimeout(() => {
+            clearInterval(checkLoaded);
+            URL.revokeObjectURL(blobUrl);
+          }, 30000);
+        } else {
+          URL.revokeObjectURL(blobUrl);
+        }
+      } else {
+        console.error('Erreur lors de la génération du PDF');
+        // Fallback to the old method
+        const pdfLines = buildPdfLines({
+          model: selectedModelName,
+          finish: selectedFinish?.name ?? 'NC',
+          color: selectedColor?.name ?? 'Standard',
+          options: selectedOptionEntities,
+          accessories: selectedAccessoryEntities,
+          financing: selectedFinancing,
+          insurance: selectedInsurance,
+          totals: {
+            vehicle: baseVehiclePrice,
+            options: optionsPrice,
+            accessories: accessoriesPrice,
+            grandTotal: totalBeforeServices,
+            monthly: totalMonthly
+          }
+        });
+        const blob = createPdfBlob(pdfLines);
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      // Fallback to the old method
+      const pdfLines = buildPdfLines({
+        model: selectedModelName,
+        finish: selectedFinish?.name ?? 'NC',
+        color: selectedColor?.name ?? 'Standard',
         options: selectedOptionEntities,
         accessories: selectedAccessoryEntities,
         financing: selectedFinancing,
         insurance: selectedInsurance,
         totals: {
           vehicle: baseVehiclePrice,
-        options: optionsPrice,
-        accessories: accessoriesPrice,
-        grandTotal: totalBeforeServices,
-        monthly: totalMonthly
-      }
-    });
-
-    const blob = createPdfBlob(pdfLines);
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          options: optionsPrice,
+          accessories: accessoriesPrice,
+          grandTotal: totalBeforeServices,
+          monthly: totalMonthly
+        }
+      });
+      const blob = createPdfBlob(pdfLines);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Car className="h-5 w-5" />
-          <span className="text-sm uppercase tracking-wide font-semibold">
-            Configurateur véhicule
-          </span>
+      {/* Sticky Navigation Bar */}
+      <div className="sticky top-0 z-40 bg-background border-b pb-4 space-y-4">
+        {/* Navigation Buttons */}
+        <div className="flex justify-between items-center">
+          <Button
+            variant="ghost"
+            disabled={currentStep === 1}
+            onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 1))}
+            size="lg"
+          >
+            Précédent
+          </Button>
+
+          <div className="text-center">
+            <h2 className="text-lg font-semibold">{steps[currentStep - 1].title}</h2>
+            <p className="text-sm text-muted-foreground">Étape {currentStep} sur {steps.length}</p>
+          </div>
+
+          {currentStep < steps.length ? (
+            <Button
+              onClick={() => setCurrentStep((prev) => Math.min(prev + 1, steps.length))}
+              disabled={!canGoForward}
+              size="lg"
+            >
+              Continuer
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void handleGeneratePdf()}
+              disabled={!canGoForward}
+              size="lg"
+            >
+              Générer PDF
+            </Button>
+          )}
         </div>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
-            Composez votre offre étape par étape
-          </h1>
-          <p className="text-muted-foreground max-w-3xl">
-            Sélectionnez un modèle importé depuis Neon, ajoutez vos options puis générez un PDF
-            récapitulatif à partager immédiatement avec votre prospect.
-          </p>
-        </div>
+
+        {/* Filters for Step 1 */}
+        {currentStep === 1 && filteredVehicles.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-4 pt-4 border-t">
+            <div>
+              <Label htmlFor="search" className="text-xs">Rechercher</Label>
+              <Input
+                id="search"
+                placeholder="Rechercher un véhicule..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label htmlFor="model-filter" className="text-xs">Modèle</Label>
+              <Select value={modelFilter} onValueChange={setModelFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Tous les modèles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les modèles</SelectItem>
+                  {uniqueModels.map(model => (
+                    <SelectItem key={model} value={model}>{model}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="finish-filter" className="text-xs">Finition</Label>
+              <Select value={finishFilter} onValueChange={setFinishFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Toutes les finitions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les finitions</SelectItem>
+                  {uniqueFinishes.map(finish => (
+                    <SelectItem key={finish} value={finish}>{finish}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setModelFilter('all');
+                  setFinishFilter('all');
+                  setSearchFilter('');
+                }}
+                className="w-full h-9"
+              >
+                Réinitialiser
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {currentStep === 1 && filteredVehicles.length > 0 && (
+          <div className="text-sm text-muted-foreground pt-2">
+            {filteredVehicles.length} véhicule{filteredVehicles.length > 1 ? 's' : ''} trouvé{filteredVehicles.length > 1 ? 's' : ''}
+          </div>
+        )}
       </div>
 
       <StepIndicator currentStep={currentStep} />
@@ -210,7 +443,7 @@ export function VehicleConfiguratorClient({ vehicles, preselectedAccountId }: Ve
         selectedModel,
         selectedFinishName,
         setSelectedFinishName,
-        vehicles,
+        vehicles: filteredVehicles,
         selectedColorId,
         setSelectedColorId,
         selectedFinish,
@@ -235,26 +468,14 @@ export function VehicleConfiguratorClient({ vehicles, preselectedAccountId }: Ve
         selectedAccessoryEntities,
         handleGeneratePdf,
         selectedColor,
-        preselectedAccountId
+        preselectedAccountId,
+        modelFilter,
+        setModelFilter,
+        finishFilter,
+        setFinishFilter,
+        searchFilter,
+        setSearchFilter
       })}
-
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <Button
-          variant="ghost"
-          disabled={currentStep === 1}
-          onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 1))}
-        >
-          Étape précédente
-        </Button>
-        {currentStep < steps.length && (
-          <Button
-            onClick={() => setCurrentStep((prev) => Math.min(prev + 1, steps.length))}
-            disabled={!canGoForward}
-          >
-            Continuer vers l’étape {currentStep + 1}
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -293,6 +514,12 @@ function renderStepContent(props: {
   handleGeneratePdf: () => void;
   selectedColor?: (typeof VEHICLE_MODELS)[number]['colors'][number];
   preselectedAccountId?: number;
+  modelFilter: string;
+  setModelFilter: Dispatch<SetStateAction<string>>;
+  finishFilter: string;
+  setFinishFilter: Dispatch<SetStateAction<string>>;
+  searchFilter: string;
+  setSearchFilter: Dispatch<SetStateAction<string>>;
 }) {
   switch (props.currentStep) {
     case 1:
@@ -303,8 +530,19 @@ function renderStepContent(props: {
               <CardContent className="flex flex-col items-center justify-center py-12">
                 <Car className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">
-                  Aucun véhicule disponible. Veuillez importer des véhicules dans les paramètres.
+                  Aucun véhicule ne correspond à vos critères de recherche.
                 </p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => {
+                    props.setModelFilter('all');
+                    props.setFinishFilter('all');
+                    props.setSearchFilter('');
+                  }}
+                >
+                  Réinitialiser les filtres
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -317,7 +555,7 @@ function renderStepContent(props: {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
                     {props.vehicles.map((vehicle) => {
                       const isSelected = props.selectedModelName === vehicle.model && props.selectedFinishName === vehicle.finish;
                       return (
@@ -334,7 +572,7 @@ function renderStepContent(props: {
                           }}
                         >
                           {vehicle.imageUrl && (
-                            <div className="relative h-48 w-full overflow-hidden bg-muted">
+                            <div className="relative h-32 w-full overflow-hidden bg-muted">
                               <img
                                 src={vehicle.imageUrl}
                                 alt={`${vehicle.model} ${vehicle.finish}`}
@@ -344,30 +582,30 @@ function renderStepContent(props: {
                                 }}
                               />
                               {isSelected && (
-                                <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1.5">
-                                  <CheckCircle2 className="h-5 w-5" />
+                                <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+                                  <CheckCircle2 className="h-4 w-4" />
                                 </div>
                               )}
                             </div>
                           )}
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-lg flex items-center justify-between">
-                              {vehicle.model}
+                          <CardHeader className="p-3">
+                            <CardTitle className="text-sm flex items-center justify-between">
+                              <span className="truncate">{vehicle.model}</span>
                               {isSelected && !vehicle.imageUrl && (
-                                <CheckCircle2 className="h-5 w-5 text-primary" />
+                                <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 ml-2" />
                               )}
                             </CardTitle>
-                            <CardDescription className="text-sm">{vehicle.finish}</CardDescription>
+                            <CardDescription className="text-xs truncate">{vehicle.finish}</CardDescription>
                           </CardHeader>
-                          <CardContent className="pt-0">
+                          <CardContent className="p-3 pt-0">
                             {vehicle.description && (
-                              <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
                                 {vehicle.description}
                               </p>
                             )}
                             <div className="flex items-center justify-between pt-2 border-t">
-                              <span className="text-xs text-muted-foreground">Prix de base</span>
-                              <span className="text-lg font-bold">
+                              <span className="text-xs text-muted-foreground">Prix</span>
+                              <span className="text-sm font-bold">
                                 {vehicle.basePrice ? currency.format(Number(vehicle.basePrice)) : 'Sur demande'}
                               </span>
                             </div>
@@ -621,7 +859,7 @@ function renderStepContent(props: {
                     Vue instantanée de la configuration sélectionnée avec export PDF.
                   </CardDescription>
                 </div>
-                <Button size="sm" onClick={props.handleGeneratePdf}>
+                <Button size="sm" onClick={() => void props.handleGeneratePdf()}>
                   Générer le PDF
                 </Button>
               </div>

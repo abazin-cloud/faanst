@@ -1,8 +1,10 @@
 'use server';
 
-import { deleteProductById, createLead } from '@/lib/db';
+import { deleteProductById, createLead, db, leads } from '@/lib/db';
+import { pushLeadToSalesforce } from '@/lib/salesforce-lead-sync';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { desc } from 'drizzle-orm';
 
 export async function deleteProduct(formData: FormData) {
   // let id = Number(formData.get('id'));
@@ -38,6 +40,7 @@ export async function addLead(formData: FormData) {
     
     console.log('Validated data:', validatedData);
 
+    // Create lead in local database
     await createLead({
       companyName: validatedData.companyName,
       contactName: validatedData.contactName,
@@ -48,8 +51,32 @@ export async function addLead(formData: FormData) {
       notes: validatedData.notes || null,
     });
 
-    console.log('Lead created successfully!');
+    console.log('Lead created successfully in local DB!');
+
+    // Get the newly created lead
+    const newLeads = await db
+      .select()
+      .from(leads)
+      .orderBy(desc(leads.createdAt))
+      .limit(1);
+
+    if (newLeads.length > 0) {
+      const newLead = newLeads[0];
+      
+      // Push to Salesforce (async, don't wait for it)
+      try {
+        console.log('Syncing lead to Salesforce...');
+        await pushLeadToSalesforce(newLead);
+        console.log('Lead synced to Salesforce successfully!');
+      } catch (sfError) {
+        // Log error but don't fail the entire operation
+        console.error('Failed to sync lead to Salesforce:', sfError);
+        console.warn('Lead was created locally but not in Salesforce. You can sync it later.');
+      }
+    }
+
     revalidatePath('/');
+    revalidatePath('/leads');
   } catch (error) {
     console.error('Error adding lead:', error);
     throw error;

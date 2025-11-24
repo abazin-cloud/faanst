@@ -59,9 +59,30 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
     customerEmail: '',
   });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  
+  // Filtres pour l'étape 1
+  const [modelFilter, setModelFilter] = useState<string>('all');
+  const [finishFilter, setFinishFilter] = useState<string>('all');
+  const [searchFilter, setSearchFilter] = useState<string>('');
 
   const selectedVehicle = vehicles.find(v => v.id === config.vehicleId);
   const selectedOptionsData = options.filter(o => config.selectedOptions.includes(o.id));
+
+  // Get unique models and finishes
+  const uniqueModels = Array.from(new Set(vehicles.map(v => v.model))).sort();
+  const uniqueFinishes = Array.from(new Set(vehicles.map(v => v.finish))).sort();
+
+  // Filter vehicles based on filters
+  const filteredVehicles = vehicles.filter(vehicle => {
+    const matchesModel = modelFilter === 'all' || vehicle.model === modelFilter;
+    const matchesFinish = finishFilter === 'all' || vehicle.finish === finishFilter;
+    const matchesSearch = searchFilter === '' || 
+      vehicle.model.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      vehicle.finish.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      (vehicle.description && vehicle.description.toLowerCase().includes(searchFilter.toLowerCase()));
+    
+    return matchesModel && matchesFinish && matchesSearch;
+  });
 
   // Calculate totals
   const basePrice = Number(selectedVehicle?.basePrice || 0);
@@ -130,16 +151,37 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
 
       if (response.ok) {
         const htmlContent = await response.text();
-        const printWindow = window.open('', '_blank');
+        
+        // Create a blob with the HTML content
+        const blob = new Blob([htmlContent], { type: 'text/html; charset=utf-8' });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Open the blob URL in a new window
+        const printWindow = window.open(blobUrl, '_blank');
+        
         if (printWindow) {
-          printWindow.document.write(htmlContent);
-          printWindow.document.close();
-          // Trigger print dialog after content is loaded
-          printWindow.onload = function() {
-            setTimeout(() => {
-              printWindow.print();
-            }, 250);
-          };
+          // Wait for the window to load completely
+          const checkLoaded = setInterval(() => {
+            if (printWindow.document.readyState === 'complete') {
+              clearInterval(checkLoaded);
+              setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+                // Clean up the blob URL after printing
+                setTimeout(() => {
+                  URL.revokeObjectURL(blobUrl);
+                }, 1000);
+              }, 1000);
+            }
+          }, 100);
+          
+          // Cleanup after 30 seconds if something goes wrong
+          setTimeout(() => {
+            clearInterval(checkLoaded);
+            URL.revokeObjectURL(blobUrl);
+          }, 30000);
+        } else {
+          URL.revokeObjectURL(blobUrl);
         }
       } else {
         alert('Erreur lors de la génération du PDF');
@@ -154,13 +196,115 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
 
   return (
     <div className="space-y-6">
-      {/* Steps Header */}
+      {/* Sticky Navigation Bar */}
+      <div className="sticky top-0 z-40 bg-background border-b pb-4 space-y-4">
+        {/* Navigation Buttons */}
+        <div className="flex justify-between items-center">
+          <Button
+            onClick={handlePrevious}
+            disabled={currentStep === 1}
+            variant="outline"
+            size="lg"
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Précédent
+          </Button>
+
+          <div className="text-center">
+            <h2 className="text-lg font-semibold">{STEPS[currentStep - 1].name}</h2>
+            <p className="text-sm text-muted-foreground">Étape {currentStep} sur 4</p>
+          </div>
+
+          {currentStep < 4 ? (
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed(currentStep)}
+              size="lg"
+            >
+              Suivant
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleGeneratePdf}
+              disabled={!canProceed(4) || isGeneratingPdf}
+              size="lg"
+            >
+              <Download className="mr-2 h-5 w-5" />
+              {isGeneratingPdf ? 'Génération...' : 'Générer PDF'}
+            </Button>
+          )}
+        </div>
+
+        {/* Filters for Step 1 */}
+        {currentStep === 1 && filteredVehicles.length > 0 && (
+          <div className="grid gap-4 md:grid-cols-4 pt-4 border-t">
+            <div>
+              <Label htmlFor="search" className="text-xs">Rechercher</Label>
+              <Input
+                id="search"
+                placeholder="Rechercher un véhicule..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label htmlFor="model-filter" className="text-xs">Modèle</Label>
+              <Select value={modelFilter} onValueChange={setModelFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Tous les modèles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les modèles</SelectItem>
+                  {uniqueModels.map(model => (
+                    <SelectItem key={model} value={model}>{model}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="finish-filter" className="text-xs">Finition</Label>
+              <Select value={finishFilter} onValueChange={setFinishFilter}>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Toutes les finitions" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les finitions</SelectItem>
+                  {uniqueFinishes.map(finish => (
+                    <SelectItem key={finish} value={finish}>{finish}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setModelFilter('all');
+                  setFinishFilter('all');
+                  setSearchFilter('');
+                }}
+                className="w-full h-9"
+              >
+                Réinitialiser
+              </Button>
+            </div>
+            <div className="col-span-full text-sm text-muted-foreground">
+              {filteredVehicles.length} véhicule{filteredVehicles.length > 1 ? 's' : ''} trouvé{filteredVehicles.length > 1 ? 's' : ''}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Steps Progress Indicator (collapsed) */}
       <div className="flex items-center justify-between">
         {STEPS.map((step, index) => (
           <div key={step.id} className="flex items-center flex-1">
             <div className="flex flex-col items-center flex-1">
               <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
                   currentStep > step.id
                     ? 'bg-green-600 border-green-600 text-white'
                     : currentStep === step.id
@@ -169,24 +313,21 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
                 }`}
               >
                 {currentStep > step.id ? (
-                  <Check className="h-6 w-6" />
+                  <Check className="h-5 w-5" />
                 ) : (
-                  <step.icon className="h-6 w-6" />
+                  <step.icon className="h-5 w-5" />
                 )}
               </div>
-              <div className="mt-2 text-center">
-                <p className={`text-sm font-medium ${
+              <div className="mt-1 text-center">
+                <p className={`text-xs font-medium ${
                   currentStep >= step.id ? 'text-foreground' : 'text-muted-foreground'
                 }`}>
                   {step.name}
                 </p>
-                <p className="text-xs text-muted-foreground hidden sm:block">
-                  {step.description}
-                </p>
               </div>
             </div>
             {index < STEPS.length - 1 && (
-              <div className={`h-0.5 w-full mx-4 transition-colors ${
+              <div className={`h-0.5 w-full mx-2 transition-colors ${
                 currentStep > step.id ? 'bg-green-600' : 'bg-muted'
               }`} />
             )}
@@ -211,9 +352,27 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
                     Aucun véhicule disponible. Veuillez importer des véhicules dans les paramètres.
                   </p>
                 </div>
+              ) : filteredVehicles.length === 0 ? (
+                <div className="text-center py-12">
+                  <Car className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    Aucun véhicule ne correspond à vos critères de recherche.
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => {
+                      setModelFilter('all');
+                      setFinishFilter('all');
+                      setSearchFilter('');
+                    }}
+                  >
+                    Réinitialiser les filtres
+                  </Button>
+                </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {vehicles.map((vehicle) => (
+                <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-4">
+                  {filteredVehicles.map((vehicle) => (
                     <Card
                       key={vehicle.id}
                       className={`cursor-pointer transition-all overflow-hidden ${
@@ -224,7 +383,7 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
                       onClick={() => setConfig(prev => ({ ...prev, vehicleId: vehicle.id }))}
                     >
                       {vehicle.imageUrl && (
-                        <div className="relative h-48 w-full overflow-hidden bg-muted">
+                        <div className="relative h-32 w-full overflow-hidden bg-muted">
                           <img
                             src={vehicle.imageUrl}
                             alt={`${vehicle.model} ${vehicle.finish}`}
@@ -240,24 +399,19 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
                           )}
                         </div>
                       )}
-                      <CardHeader>
-                        <CardTitle className="text-lg flex items-center justify-between">
-                          {vehicle.model}
+                      <CardHeader className="p-3">
+                        <CardTitle className="text-sm flex items-center justify-between">
+                          <span className="truncate">{vehicle.model}</span>
                           {config.vehicleId === vehicle.id && !vehicle.imageUrl && (
-                            <Check className="h-5 w-5 text-blue-600" />
+                            <Check className="h-4 w-4 text-blue-600 flex-shrink-0 ml-2" />
                           )}
                         </CardTitle>
-                        <CardDescription>{vehicle.finish}</CardDescription>
+                        <CardDescription className="text-xs truncate">{vehicle.finish}</CardDescription>
                       </CardHeader>
-                      <CardContent>
-                        {vehicle.description && (
-                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                            {vehicle.description}
-                          </p>
-                        )}
+                      <CardContent className="p-3 pt-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Prix de base</span>
-                          <span className="text-lg font-bold">
+                          <span className="text-xs text-muted-foreground">Prix</span>
+                          <span className="text-sm font-bold">
                             {vehicle.basePrice ? `${Number(vehicle.basePrice).toLocaleString('fr-FR')} €` : 'Sur demande'}
                           </span>
                         </div>
@@ -638,46 +792,10 @@ export function ConfiguratorWizard({ vehicles, options }: ConfiguratorWizardProp
                 </CardContent>
               </Card>
 
-              {/* Generate PDF Button */}
-              <Button
-                onClick={handleGeneratePdf}
-                disabled={!canProceed(4) || isGeneratingPdf}
-                size="lg"
-                className="w-full"
-              >
-                <Download className="mr-2 h-5 w-5" />
-                {isGeneratingPdf ? 'Génération en cours...' : 'Générer le PDF'}
-              </Button>
             </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Navigation Buttons */}
-      <div className="flex justify-between">
-        <Button
-          onClick={handlePrevious}
-          disabled={currentStep === 1}
-          variant="outline"
-        >
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Précédent
-        </Button>
-
-        {currentStep < 4 ? (
-          <Button
-            onClick={handleNext}
-            disabled={!canProceed(currentStep)}
-          >
-            Suivant
-            <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
-        ) : (
-          <div className="text-sm text-muted-foreground">
-            Cliquez sur "Générer le PDF" ci-dessus
-          </div>
-        )}
-      </div>
     </div>
   );
 }

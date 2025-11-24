@@ -8,20 +8,6 @@
       "when": 1763453774000,
       "tag": "0001_create_vehicles",
       "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "1",
-      "when": 1763453775000,
-      "tag": "0002_vehicle_configurator",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "1",
-      "when": 1763453776000,
-      "tag": "0003_link_configurations_to_accounts",
-      "breakpoints": true
     }
   ]
 }

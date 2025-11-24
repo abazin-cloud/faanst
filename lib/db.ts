@@ -36,6 +36,7 @@ export const users = pgTable('users', {
   password: text('password').notNull(),
   emailVerified: timestamp('email_verified', { mode: 'date' }),
   image: text('image'),
+  salesforceEmail: text('salesforce_email'), // Email Salesforce pour le filtrage des leads
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow()
 });
@@ -126,6 +127,8 @@ export const leads = pgTable('leads', {
   notes: text('notes'),
   convertedToAccountId: integer('converted_to_account_id'),
   convertedToOpportunityId: integer('converted_to_opportunity_id'),
+  salesforceId: text('salesforce_id'),
+  lastSyncedAt: timestamp('last_synced_at', { mode: 'date' }),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow(),
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow()
 });

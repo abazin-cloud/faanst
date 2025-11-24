@@ -1,28 +1,133 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Target, ArrowRight, ExternalLink } from 'lucide-react';
-import { getAllLeads } from '@/lib/db';
+import { Target, ArrowRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { AddLeadDialog } from '../add-lead-dialog';
-import { LeadActions } from './lead-actions';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-export default async function LeadsPage() {
-  const allLeads = await getAllLeads();
+// Type pour les leads Salesforce
+interface SalesforceLead {
+  Id: string;
+  FirstName?: string;
+  LastName: string;
+  Company: string;
+  Title?: string;
+  Email?: string;
+  Phone?: string;
+  Status?: string;
+  Rating?: string;
+  Description?: string;
+  CreatedDate?: string;
+}
 
-  // Filter leads by qualification status
-  const nouveauLeads = allLeads.filter(lead => lead.qualificationStatus === 'nouveau');
-  const qualifieLeads = allLeads.filter(lead => lead.qualificationStatus === 'qualifie');
-  const transformeLeads = allLeads.filter(lead => lead.qualificationStatus === 'transforme');
+export default function LeadsPage() {
+  const [allLeads, setAllLeads] = useState<SalesforceLead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'hot': return 'destructive';
-      case 'warm': return 'default';
-      default: return 'secondary';
+  // Récupérer l'utilisateur connecté
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
+
+      if (data.success && data.user) {
+        // Utiliser salesforceEmail s'il est défini, sinon utiliser l'email normal
+        const emailToUse = data.user.salesforceEmail || data.user.email;
+        if (emailToUse) {
+          setUserEmail(emailToUse);
+        } else {
+          throw new Error('Aucun email trouvé pour l\'utilisateur');
+        }
+      } else {
+        throw new Error('Impossible de récupérer l\'utilisateur connecté');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get current user');
+      console.error('Error fetching current user:', err);
     }
+  };
+
+  // Charger les leads depuis Salesforce
+  const fetchLeads = async () => {
+    if (!userEmail) return;
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/salesforce/leads?ownerEmail=${encodeURIComponent(userEmail)}&limit=500`
+      );
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch leads from Salesforce');
+      }
+
+      setAllLeads(data.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load leads');
+      console.error('Error fetching leads:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Récupérer l'utilisateur au chargement
+  useEffect(() => {
+    fetchCurrentUser();
+  }, []);
+
+  // Charger les leads quand l'email est disponible
+  useEffect(() => {
+    if (userEmail) {
+      fetchLeads();
+    }
+  }, [userEmail]);
+
+  // Mapper le statut Salesforce vers notre système local
+  const mapSalesforceStatus = (sfStatus?: string): 'hot' | 'warm' | 'cold' => {
+    if (!sfStatus) return 'cold';
+    const lower = sfStatus.toLowerCase();
+    if (lower.includes('hot')) return 'hot';
+    if (lower.includes('warm')) return 'warm';
+    return 'cold';
+  };
+
+  // Mapper la qualification Salesforce vers notre système
+  const mapQualificationStatus = (sfStatus?: string): 'nouveau' | 'qualifie' | 'transforme' => {
+    if (!sfStatus) return 'nouveau';
+    const lower = sfStatus.toLowerCase();
+    if (lower.includes('qualified')) return 'transforme';
+    if (lower.includes('working') || lower.includes('contacted')) return 'qualifie';
+    return 'nouveau';
+  };
+
+  // Filtrer les leads par statut de qualification
+  const nouveauLeads = allLeads.filter(
+    lead => mapQualificationStatus(lead.Status) === 'nouveau'
+  );
+  const qualifieLeads = allLeads.filter(
+    lead => mapQualificationStatus(lead.Status) === 'qualifie'
+  );
+  const transformeLeads = allLeads.filter(
+    lead => mapQualificationStatus(lead.Status) === 'transforme'
+  );
+
+  const getStatusBadgeVariant = (rating?: string) => {
+    if (!rating) return 'secondary';
+    const lower = rating.toLowerCase();
+    if (lower.includes('hot')) return 'destructive';
+    if (lower.includes('warm')) return 'default';
+    return 'secondary';
   };
 
   const getQualificationBadgeVariant = (status: string) => {
@@ -43,12 +148,38 @@ export default async function LeadsPage() {
     }
   };
 
-  const renderLeadsTable = (leads: typeof allLeads) => {
+  const renderLeadsTable = (leads: SalesforceLead[]) => {
+    if (loading) {
+      return (
+        <div className="text-center py-12">
+          <RefreshCw className="h-8 w-8 mx-auto mb-4 animate-spin text-muted-foreground" />
+          <p className="text-muted-foreground">Chargement des leads depuis Salesforce...</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-center py-12">
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-sm text-red-600">
+              <strong>Erreur:</strong> {error}
+            </p>
+          </div>
+          <Button onClick={fetchLeads} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Réessayer
+          </Button>
+        </div>
+      );
+    }
+
     if (leads.length === 0) {
       return (
         <div className="text-center py-12 text-muted-foreground">
           <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p className="text-sm">Aucun lead dans cette catégorie.</p>
+          <p className="text-xs mt-2">Les leads sont chargés depuis Salesforce</p>
         </div>
       );
     }
@@ -61,45 +192,68 @@ export default async function LeadsPage() {
             <TableHead>Contact</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Téléphone</TableHead>
-            <TableHead>Valeur estimée</TableHead>
-            <TableHead>Statut</TableHead>
+            <TableHead>Statut SF</TableHead>
+            <TableHead>Rating</TableHead>
             <TableHead>Qualification</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {leads.map((lead) => (
-            <TableRow key={lead.id}>
-              <TableCell className="font-medium">
-                <Link 
-                  href={`/leads/${lead.id}`}
-                  className="hover:underline flex items-center gap-2"
-                >
-                  {lead.companyName}
-                  <ExternalLink className="h-3 w-3 opacity-50" />
-                </Link>
-              </TableCell>
-              <TableCell>{lead.contactName}</TableCell>
-              <TableCell className="text-muted-foreground">{lead.email}</TableCell>
-              <TableCell className="text-muted-foreground">{lead.phone || '-'}</TableCell>
-              <TableCell className="font-medium">
-                ${Number(lead.estimatedValue).toLocaleString()}
-              </TableCell>
-              <TableCell>
-                <Badge variant={getStatusBadgeVariant(lead.status)}>
-                  {lead.status}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge variant={getQualificationBadgeVariant(lead.qualificationStatus)}>
-                  {getQualificationLabel(lead.qualificationStatus)}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <LeadActions lead={lead} />
-              </TableCell>
-            </TableRow>
-          ))}
+          {leads.map((lead) => {
+            const fullName = [lead.FirstName, lead.LastName].filter(Boolean).join(' ');
+            const qualification = mapQualificationStatus(lead.Status);
+            
+            return (
+              <TableRow key={lead.Id}>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    {lead.Company}
+                    <a
+                      href={`https://login.salesforce.com/${lead.Id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </TableCell>
+                <TableCell>{fullName}</TableCell>
+                <TableCell className="text-muted-foreground">{lead.Email || '-'}</TableCell>
+                <TableCell className="text-muted-foreground">{lead.Phone || '-'}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs">
+                    {lead.Status || 'N/A'}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getStatusBadgeVariant(lead.Rating)}>
+                    {lead.Rating || 'Cold'}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={getQualificationBadgeVariant(qualification)}>
+                    {getQualificationLabel(qualification)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                  >
+                    <a
+                      href={`https://login.salesforce.com/${lead.Id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Voir dans SF
+                    </a>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     );
@@ -110,12 +264,18 @@ export default async function LeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Gestion des Leads</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Mes Leads Salesforce</h1>
           <p className="text-muted-foreground">
-            Suivez et qualifiez vos opportunités commerciales
+            {userEmail ? `Leads de ${userEmail}` : 'Chargement...'}
           </p>
         </div>
-        <AddLeadDialog />
+        <div className="flex items-center gap-2">
+          <Button onClick={fetchLeads} variant="outline" size="sm" disabled={loading || !userEmail}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Actualiser
+          </Button>
+          <AddLeadDialog onLeadAdded={fetchLeads} />
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -165,7 +325,7 @@ export default async function LeadsPage() {
         <CardHeader>
           <CardTitle>Tous les Leads</CardTitle>
           <CardDescription>
-            Gérez vos leads par statut de qualification
+            Chargés directement depuis Salesforce • {allLeads.length} lead(s) total
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,9 +366,3 @@ export default async function LeadsPage() {
     </div>
   );
 }
-
-
-
-
-
-

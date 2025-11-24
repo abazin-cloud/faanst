@@ -64,3 +64,19 @@ echo -e "2. Lancez l'application: ${GREEN}pnpm run dev${NC}"
 echo -e "3. Allez sur ${GREEN}http://localhost:3000/login${NC}\n"
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

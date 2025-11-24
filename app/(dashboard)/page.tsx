@@ -1,3 +1,5 @@
+'use client';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,14 +14,70 @@ import {
   DollarSign
 } from 'lucide-react';
 import Link from 'next/link';
-import { getLeads, getLeadsCount } from '@/lib/db';
 import { AddLeadDialog } from './add-lead-dialog';
+import { ShowroomHome } from './showroom-home';
+import { useShowroomMode } from '@/lib/showroom-mode-context';
+import { useEffect, useState } from 'react';
 
-export default async function DashboardPage() {
-  // Fetch real leads from database
-  const leads = await getLeads(3); // Get top 3 leads
-  const totalLeads = await getLeadsCount();
+export default function DashboardPage() {
+  const { isShowroomMode } = useShowroomMode();
+  const [leads, setLeads] = useState<any[]>([]);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  // Récupérer l'utilisateur connecté
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
+
+      if (data.success && data.user) {
+        const emailToUse = data.user.salesforceEmail || data.user.email;
+        setUserEmail(emailToUse);
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+    }
+  };
+
+  const fetchData = async () => {
+    if (!userEmail) return;
+    
+    try {
+      // Charger les leads depuis Salesforce avec filtre par propriétaire
+      const response = await fetch(`/api/salesforce/leads?ownerEmail=${encodeURIComponent(userEmail)}&limit=5`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setLeads(data.data || []);
+        setTotalLeads(data.totalSize || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching leads:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isShowroomMode) {
+      fetchCurrentUser();
+    }
+  }, [isShowroomMode]);
+
+  useEffect(() => {
+    if (!isShowroomMode && userEmail) {
+      fetchData();
+    }
+  }, [isShowroomMode, userEmail]);
+
+  // Si mode salon activé, afficher l'interface simplifiée
+  if (isShowroomMode) {
+    return <ShowroomHome />;
+  }
+
+  // Sinon, afficher le dashboard normal
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
@@ -27,7 +85,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Commercial Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back! Here's an overview of your sales activities.
+            {userEmail ? `Mes données Salesforce (${userEmail})` : 'Chargement...'}
           </p>
         </div>
       </div>
@@ -131,37 +189,46 @@ export default async function DashboardPage() {
               <CardTitle>Active Leads</CardTitle>
               <CardDescription>Leads requiring attention</CardDescription>
             </div>
-            <AddLeadDialog />
+            <AddLeadDialog onLeadAdded={fetchData} />
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {leads.length > 0 ? (
-                leads.map((lead) => (
-                  <div key={lead.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{lead.companyName}</p>
-                        <Badge variant={
-                          lead.status === 'hot' ? 'destructive' : 
-                          lead.status === 'warm' ? 'default' : 
-                          'secondary'
-                        }>
-                          {lead.status}
-                        </Badge>
+              {isLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-sm">Chargement des leads...</p>
+                </div>
+              ) : leads.length > 0 ? (
+                leads.map((lead) => {
+                  const fullName = [lead.FirstName, lead.LastName].filter(Boolean).join(' ');
+                  return (
+                    <div key={lead.Id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{lead.Company}</p>
+                          <Badge variant={
+                            lead.Rating === 'Hot' ? 'destructive' : 
+                            lead.Rating === 'Warm' ? 'default' : 
+                            'secondary'
+                          }>
+                            {lead.Rating || 'Cold'}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{fullName}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground">{lead.contactName}</p>
+                      <Badge variant="outline" className="text-xs">
+                        {lead.Status || 'N/A'}
+                      </Badge>
                     </div>
-                    <p className="text-sm font-medium">${Number(lead.estimatedValue).toLocaleString()}</p>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  <p className="text-sm">No leads yet.</p>
-                  <p className="text-xs mt-1">Click "Add Lead" to get started!</p>
+                  <p className="text-sm">Aucun lead trouvé.</p>
+                  <p className="text-xs mt-1">Cliquez sur "Add Lead" pour commencer !</p>
                 </div>
               )}
               <Button className="w-full mt-4" variant="outline" asChild>
-                <Link href="/leads">View All Leads</Link>
+                <Link href="/leads">View All Leads ({totalLeads})</Link>
               </Button>
             </div>
           </CardContent>

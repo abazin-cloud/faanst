@@ -22,3 +22,19 @@ COMMENT ON COLUMN vehicle_configurations.account_id IS 'ID du compte client asso
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -57,3 +57,19 @@ COMMENT ON TABLE vehicle_configurations IS 'Configurations de véhicules sauvega
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

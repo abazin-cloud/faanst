@@ -382,3 +382,19 @@ RESEND_API_KEY=your_resend_key # Si vous utilisez Resend
 Pour toute question ou problème, consultez ce guide ou les logs de l'application.
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -39,3 +39,19 @@ COMMENT ON TABLE verification_tokens IS 'Tokens de vérification pour la validat
 COMMENT ON TABLE sessions IS 'Sessions NextAuth pour la gestion de l\'authentification';
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
