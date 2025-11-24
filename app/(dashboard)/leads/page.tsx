@@ -10,24 +10,10 @@ import { Target, ArrowRight, ExternalLink, RefreshCw } from 'lucide-react';
 import { AddLeadDialog } from '../add-lead-dialog';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-// Type pour les leads Salesforce
-interface SalesforceLead {
-  Id: string;
-  FirstName?: string;
-  LastName: string;
-  Company: string;
-  Title?: string;
-  Email?: string;
-  Phone?: string;
-  Status?: string;
-  Rating?: string;
-  Description?: string;
-  CreatedDate?: string;
-}
+import type { CrmLead } from '@/lib/crm';
 
 export default function LeadsPage() {
-  const [allLeads, setAllLeads] = useState<SalesforceLead[]>([]);
+  const [allLeads, setAllLeads] = useState<CrmLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -55,7 +41,7 @@ export default function LeadsPage() {
     }
   };
 
-  // Charger les leads depuis Salesforce
+  // Charger les leads via la surcouche CRM
   const fetchLeads = async () => {
     if (!userEmail) return;
     
@@ -69,7 +55,7 @@ export default function LeadsPage() {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch leads from Salesforce');
+        throw new Error(data.error || 'Failed to fetch leads from CRM');
       }
 
       setAllLeads(data.data || []);
@@ -93,16 +79,7 @@ export default function LeadsPage() {
     }
   }, [userEmail]);
 
-  // Mapper le statut Salesforce vers notre système local
-  const mapSalesforceStatus = (sfStatus?: string): 'hot' | 'warm' | 'cold' => {
-    if (!sfStatus) return 'cold';
-    const lower = sfStatus.toLowerCase();
-    if (lower.includes('hot')) return 'hot';
-    if (lower.includes('warm')) return 'warm';
-    return 'cold';
-  };
-
-  // Mapper la qualification Salesforce vers notre système
+  // Mapper la qualification CRM vers notre système
   const mapQualificationStatus = (sfStatus?: string): 'nouveau' | 'qualifie' | 'transforme' => {
     if (!sfStatus) return 'nouveau';
     const lower = sfStatus.toLowerCase();
@@ -113,13 +90,13 @@ export default function LeadsPage() {
 
   // Filtrer les leads par statut de qualification
   const nouveauLeads = allLeads.filter(
-    lead => mapQualificationStatus(lead.Status) === 'nouveau'
+    lead => mapQualificationStatus(lead.status) === 'nouveau'
   );
   const qualifieLeads = allLeads.filter(
-    lead => mapQualificationStatus(lead.Status) === 'qualifie'
+    lead => mapQualificationStatus(lead.status) === 'qualifie'
   );
   const transformeLeads = allLeads.filter(
-    lead => mapQualificationStatus(lead.Status) === 'transforme'
+    lead => mapQualificationStatus(lead.status) === 'transforme'
   );
 
   const getStatusBadgeVariant = (rating?: string) => {
@@ -148,12 +125,12 @@ export default function LeadsPage() {
     }
   };
 
-  const renderLeadsTable = (leads: SalesforceLead[]) => {
+  const renderLeadsTable = (leads: CrmLead[]) => {
     if (loading) {
       return (
         <div className="text-center py-12">
           <RefreshCw className="h-8 w-8 mx-auto mb-4 animate-spin text-muted-foreground" />
-          <p className="text-muted-foreground">Chargement des leads depuis Salesforce...</p>
+          <p className="text-muted-foreground">Chargement des leads depuis le CRM...</p>
         </div>
       );
     }
@@ -179,7 +156,7 @@ export default function LeadsPage() {
         <div className="text-center py-12 text-muted-foreground">
           <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p className="text-sm">Aucun lead dans cette catégorie.</p>
-          <p className="text-xs mt-2">Les leads sont chargés depuis Salesforce</p>
+          <p className="text-xs mt-2">Les leads sont chargés depuis le CRM</p>
         </div>
       );
     }
@@ -200,35 +177,37 @@ export default function LeadsPage() {
         </TableHeader>
         <TableBody>
           {leads.map((lead) => {
-            const fullName = [lead.FirstName, lead.LastName].filter(Boolean).join(' ');
-            const qualification = mapQualificationStatus(lead.Status);
-            
+            const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(' ');
+            const qualification = mapQualificationStatus(lead.status);
+
             return (
-              <TableRow key={lead.Id}>
+              <TableRow key={lead.id}>
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
-                    {lead.Company}
-                    <a
-                      href={`https://login.salesforce.com/${lead.Id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
+                    {lead.company}
+                    {lead.externalUrl && (
+                      <a
+                        href={lead.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>{fullName}</TableCell>
-                <TableCell className="text-muted-foreground">{lead.Email || '-'}</TableCell>
-                <TableCell className="text-muted-foreground">{lead.Phone || '-'}</TableCell>
+                <TableCell className="text-muted-foreground">{lead.email || '-'}</TableCell>
+                <TableCell className="text-muted-foreground">{lead.phone || '-'}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="text-xs">
-                    {lead.Status || 'N/A'}
+                    {lead.status || 'N/A'}
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getStatusBadgeVariant(lead.Rating)}>
-                    {lead.Rating || 'Cold'}
+                  <Badge variant={getStatusBadgeVariant(lead.rating)}>
+                    {lead.rating || 'Cold'}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -242,13 +221,17 @@ export default function LeadsPage() {
                     size="sm"
                     asChild
                   >
-                    <a
-                      href={`https://login.salesforce.com/${lead.Id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Voir dans SF
-                    </a>
+                    {lead.externalUrl ? (
+                      <a
+                        href={lead.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Voir dans SF
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">Lien indisponible</span>
+                    )}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -264,7 +247,7 @@ export default function LeadsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Mes Leads Salesforce</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Mes Leads CRM</h1>
           <p className="text-muted-foreground">
             {userEmail ? `Leads de ${userEmail}` : 'Chargement...'}
           </p>
@@ -325,7 +308,7 @@ export default function LeadsPage() {
         <CardHeader>
           <CardTitle>Tous les Leads</CardTitle>
           <CardDescription>
-            Chargés directement depuis Salesforce • {allLeads.length} lead(s) total
+            Chargés via la surcouche CRM • {allLeads.length} lead(s) total
           </CardDescription>
         </CardHeader>
         <CardContent>

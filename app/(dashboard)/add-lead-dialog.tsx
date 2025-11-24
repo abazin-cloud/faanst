@@ -21,19 +21,15 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle } from 'lucide-react';
+import type { CrmLead } from '@/lib/crm';
 
 interface AddLeadDialogProps {
   onLeadAdded?: () => void;
 }
 
-interface DuplicateLead {
-  id: string;
+type DuplicateLead = Pick<CrmLead, 'id' | 'company' | 'email' | 'phone' | 'status' | 'externalUrl'> & {
   name: string;
-  company: string;
-  email?: string;
-  phone?: string;
-  status?: string;
-}
+};
 
 export function AddLeadDialog({ onLeadAdded }: AddLeadDialogProps) {
   const [open, setOpen] = useState(false);
@@ -77,21 +73,21 @@ export function AddLeadDialog({ onLeadAdded }: AddLeadDialogProps) {
       const lastName = nameParts.pop() || contactName;
       const firstName = nameParts.join(' ') || undefined;
 
-      // Préparer les données pour Salesforce
+      // Préparer les données pour le CRM
       const leadData = {
-        LastName: lastName,
-        FirstName: firstName,
-        Company: formValues.companyName,
-        Email: formValues.email,
-        Phone: formValues.phone || undefined,
-        Status: 'Open - Not Contacted',
-        Rating: status,
-        Description: formValues.notes || undefined,
+        lastName: lastName,
+        firstName: firstName,
+        company: formValues.companyName,
+        email: formValues.email,
+        phone: formValues.phone || undefined,
+        status: 'Open - Not Contacted',
+        rating: status,
+        description: formValues.notes || undefined,
       };
 
-      console.log('Creating lead in Salesforce:', leadData);
+      console.log('Creating lead in CRM adapter:', leadData);
 
-      // Créer le lead directement dans Salesforce
+      // Créer le lead via la surcouche CRM
       const response = await fetch('/api/salesforce/leads', {
         method: 'POST',
         headers: {
@@ -107,7 +103,7 @@ export function AddLeadDialog({ onLeadAdded }: AddLeadDialogProps) {
         if (result.duplicate) {
           setDuplicateLead(result.duplicate);
         }
-        throw new Error(result.error || 'Failed to create lead in Salesforce');
+        throw new Error(result.error || 'Failed to create lead in CRM');
       }
 
       console.log('Lead created successfully:', result.data);
@@ -150,7 +146,7 @@ export function AddLeadDialog({ onLeadAdded }: AddLeadDialogProps) {
         <DialogHeader>
           <DialogTitle>Add New Lead</DialogTitle>
           <DialogDescription>
-            Le lead sera créé directement dans Salesforce.
+            Le lead sera créé via la surcouche CRM.
           </DialogDescription>
         </DialogHeader>
         {error && (
@@ -177,14 +173,16 @@ export function AddLeadDialog({ onLeadAdded }: AddLeadDialogProps) {
                     <p><strong>Statut :</strong> {duplicateLead.status}</p>
                   )}
                 </div>
-                <a
-                  href={`https://login.salesforce.com/${duplicateLead.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-2"
-                >
-                  Voir dans Salesforce →
-                </a>
+                {duplicateLead.externalUrl && (
+                  <a
+                    href={duplicateLead.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 mt-2"
+                  >
+                    Voir dans le CRM →
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -277,7 +275,7 @@ export function AddLeadDialog({ onLeadAdded }: AddLeadDialogProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Création dans Salesforce...' : 'Créer le Lead'}
+              {isSubmitting ? 'Création via le CRM...' : 'Créer le Lead'}
             </Button>
           </div>
         </form>
