@@ -1,19 +1,58 @@
 /**
  * Salesforce Leads API Route
- * 
- * GET /api/salesforce/leads - Query leads from Salesforce
- * POST /api/salesforce/leads - Create a new lead in Salesforce
+ *
+ * GET /api/salesforce/leads - Query leads from CRM abstraction
+ * POST /api/salesforce/leads - Create a new lead via CRM abstraction
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { querySalesforce, createRecord } from '@/lib/salesforce';
-import { SalesforceLead } from '@/lib/salesforce-types';
+import { getCrmLeadAdapter } from '@/lib/crm';
+import { CrmLeadInput } from '@/lib/crm/types';
+
+/**
+ * Normalize incoming body keys so that legacy Salesforce-shaped payloads continue to work.
+ */
+function normalizeLeadPayload(body: Record<string, any>): CrmLeadInput {
+  return {
+    firstName: body.firstName ?? body.FirstName,
+    lastName: body.lastName ?? body.LastName,
+    company: body.company ?? body.Company,
+    title: body.title ?? body.Title,
+    email: body.email ?? body.Email,
+    phone: body.phone ?? body.Phone,
+    mobilePhone: body.mobilePhone ?? body.MobilePhone,
+    street: body.street ?? body.Street,
+    city: body.city ?? body.City,
+    state: body.state ?? body.State,
+    postalCode: body.postalCode ?? body.PostalCode,
+    country: body.country ?? body.Country,
+    leadSource: body.leadSource ?? body.LeadSource,
+    status: body.status ?? body.Status,
+    rating: body.rating ?? body.Rating,
+    industry: body.industry ?? body.Industry,
+    website: body.website ?? body.Website,
+    description: body.description ?? body.Description,
+  } as CrmLeadInput;
+}
+
+function buildDuplicateResponse(lead: { id: string; firstName?: string; lastName: string; company: string; email?: string; phone?: string; status?: string; externalUrl?: string; }) {
+  const name = [lead.firstName, lead.lastName].filter(Boolean).join(' ');
+  return {
+    id: lead.id,
+    name,
+    company: lead.company,
+    email: lead.email,
+    phone: lead.phone,
+    status: lead.status,
+    externalUrl: lead.externalUrl,
+  };
+}
 
 /**
  * GET /api/salesforce/leads
- * 
- * Query leads from Salesforce using SOQL
- * 
+ *
+ * Query leads from CRM abstraction using SOQL under the hood
+ *
  * Query params:
  * - limit: number of records to return (default: 50)
  * - status: filter by lead status
@@ -27,256 +66,126 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const ownerEmail = searchParams.get('ownerEmail');
 
-    // First, get the User ID if ownerEmail is provided
-    let ownerId: string | null = null;
-    if (ownerEmail) {
-      console.log('[Leads API] Searching for Salesforce user with email:', ownerEmail);
-      const userQuery = `SELECT Id, Email, Name FROM User WHERE Email = '${ownerEmail.replace(/'/g, "\\'")}'`;
-      const userResult = await querySalesforce<{ Id: string; Email: string; Name: string }>(userQuery);
-      
-      console.log('[Leads API] User query result:', userResult);
-      
-      if (userResult.records.length > 0) {
-        ownerId = userResult.records[0].Id;
-        console.log('[Leads API] Found Salesforce user:', {
-          id: ownerId,
-          name: userResult.records[0].Name,
-          email: userResult.records[0].Email
-        });
-      } else {
-        console.warn('[Leads API] No Salesforce user found with email:', ownerEmail);
-      }
-    }
-
-    // Build SOQL query
-    let soql = `
-      SELECT 
-        Id, 
-        FirstName, 
-        LastName, 
-        Company, 
-        Title,
-        Email, 
-        Phone,
-        MobilePhone,
-        Street,
-        City,
-        State,
-        PostalCode,
-        Country,
-        LeadSource,
-        Status,
-        Rating,
-        Industry,
-        Website,
-        Description,
-        OwnerId,
-        CreatedDate,
-        LastModifiedDate
-      FROM Lead
-    `;
-
-    // Add WHERE clause if filters are provided
-    const conditions: string[] = [];
-    
-    // Filter by owner if provided
-    if (ownerId) {
-      conditions.push(`OwnerId = '${ownerId}'`);
-    }
-    
-    if (status) {
-      conditions.push(`Status = '${status.replace(/'/g, "\\'")}'`);
-    }
-
-    if (search) {
-      const searchTerm = search.replace(/'/g, "\\'");
-      conditions.push(
-        `(FirstName LIKE '%${searchTerm}%' OR LastName LIKE '%${searchTerm}%' OR Company LIKE '%${searchTerm}%' OR Email LIKE '%${searchTerm}%')`
-      );
-    }
-
-    if (conditions.length > 0) {
-      soql += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    soql += ` ORDER BY CreatedDate DESC LIMIT ${limit}`;
-
-    console.log('[Leads API] Executing SOQL query:', soql);
-
-    // Execute query
-    const result = await querySalesforce<SalesforceLead>(soql);
-
-    console.log('[Leads API] Query result:', {
-      totalRecords: result.records.length,
-      totalSize: result.totalSize,
-      ownerEmail: ownerEmail,
-      ownerId: ownerId
+    const crm = getCrmLeadAdapter();
+    const result = await crm.listLeads({
+      limit,
+      status,
+      search,
+      ownerEmail,
     });
 
     return NextResponse.json({
       success: true,
       data: result.records,
       totalSize: result.totalSize,
-      done: result.done
+      done: result.done,
     });
-
   } catch (error) {
-    console.error('Error querying Salesforce leads:', error);
-    
+    console.error('Error querying CRM leads:', error);
+
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to query leads'
+        error: error instanceof Error ? error.message : 'Failed to query leads',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 /**
  * POST /api/salesforce/leads
- * 
- * Create a new lead in Salesforce
- * 
- * Body: SalesforceLead object (at minimum: LastName, Company)
+ *
+ * Create a new lead in CRM
+ *
+ * Body: Lead object (camelCase preferred, Salesforce casing still accepted for backward compatibility)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const leadInput = normalizeLeadPayload(body);
 
     // Validate required fields
-    if (!body.LastName || !body.Company) {
+    if (!leadInput.lastName || !leadInput.company) {
       return NextResponse.json(
         {
           success: false,
-          error: 'LastName and Company are required fields'
+          error: 'lastName and company are required fields',
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
+    const crm = getCrmLeadAdapter();
+
     // Check for duplicates before creating
-    if (body.Email) {
-      const duplicateCheckQuery = `
-        SELECT Id, FirstName, LastName, Company, Email, Phone, Status 
-        FROM Lead 
-        WHERE Email = '${body.Email.replace(/'/g, "\\'")}'
-        LIMIT 1
-      `;
-      
+    if (leadInput.email) {
       try {
-        const duplicateResult = await querySalesforce<SalesforceLead>(duplicateCheckQuery);
-        
-        if (duplicateResult.records.length > 0) {
-          const existingLead = duplicateResult.records[0];
+        const duplicate = await crm.findLeadByEmail(leadInput.email);
+        if (duplicate) {
           return NextResponse.json(
             {
               success: false,
               error: 'Un lead avec cet email existe déjà',
-              duplicate: {
-                id: existingLead.Id,
-                name: [existingLead.FirstName, existingLead.LastName].filter(Boolean).join(' '),
-                company: existingLead.Company,
-                email: existingLead.Email,
-                phone: existingLead.Phone,
-                status: existingLead.Status
-              }
+              duplicate: buildDuplicateResponse(duplicate),
             },
-            { status: 409 } // 409 Conflict
+            { status: 409 },
           );
         }
       } catch (dupCheckError) {
-        console.warn('Error checking for duplicates:', dupCheckError);
-        // Continue with creation even if duplicate check fails
+        console.warn('Error checking for duplicates by email:', dupCheckError);
       }
     }
 
-    // Check for phone duplicates if phone is provided
-    if (body.Phone) {
-      const phoneCheckQuery = `
-        SELECT Id, FirstName, LastName, Company, Email, Phone, Status 
-        FROM Lead 
-        WHERE Phone = '${body.Phone.replace(/'/g, "\\'")}'
-        LIMIT 1
-      `;
-      
+    if (leadInput.phone) {
       try {
-        const phoneResult = await querySalesforce<SalesforceLead>(phoneCheckQuery);
-        
-        if (phoneResult.records.length > 0) {
-          const existingLead = phoneResult.records[0];
+        const duplicate = await crm.findLeadByPhone(leadInput.phone);
+        if (duplicate) {
           return NextResponse.json(
             {
               success: false,
               error: 'Un lead avec ce numéro de téléphone existe déjà',
-              duplicate: {
-                id: existingLead.Id,
-                name: [existingLead.FirstName, existingLead.LastName].filter(Boolean).join(' '),
-                company: existingLead.Company,
-                email: existingLead.Email,
-                phone: existingLead.Phone,
-                status: existingLead.Status
-              }
+              duplicate: buildDuplicateResponse(duplicate),
             },
-            { status: 409 } // 409 Conflict
+            { status: 409 },
           );
         }
-      } catch (phoneCheckError) {
-        console.warn('Error checking phone duplicates:', phoneCheckError);
-        // Continue with creation even if duplicate check fails
+      } catch (dupCheckError) {
+        console.warn('Error checking for duplicates by phone:', dupCheckError);
       }
     }
 
-    // Prepare lead data (remove Id if present)
-    const leadData: Partial<SalesforceLead> = { ...body };
-    delete leadData.Id;
-    delete leadData.CreatedDate;
-    delete leadData.LastModifiedDate;
+    // Create lead in CRM
+    const result = await crm.createLead(leadInput);
 
-    // Create lead in Salesforce
-    const result = await createRecord('Lead', leadData);
-
-    if (!result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Failed to create lead',
-          errors: result.errors
-        },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: result.id,
-        ...leadData
-      }
-    }, { status: 201 });
-
+    return NextResponse.json(
+      {
+        success: true,
+        data: result,
+      },
+      { status: 201 },
+    );
   } catch (error) {
-    console.error('Error creating Salesforce lead:', error);
-    
+    console.error('Error creating CRM lead:', error);
+
     // Check if it's a Salesforce duplicate error
     const errorMessage = error instanceof Error ? error.message : '';
     if (errorMessage.includes('DUPLICATES_DETECTED') || errorMessage.includes('duplicate')) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Un lead similaire existe déjà dans Salesforce. Veuillez vérifier l\'email et le téléphone.'
+          error: 'Un lead similaire existe déjà dans la plateforme CRM. Veuillez vérifier l\'email et le téléphone.',
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
-    
+
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to create lead'
+        error: error instanceof Error ? error.message : 'Failed to create lead',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

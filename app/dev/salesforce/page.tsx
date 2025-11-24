@@ -7,38 +7,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Plus, Mail, Phone, Building2, User } from 'lucide-react';
-
-interface SalesforceLead {
-  Id: string;
-  FirstName?: string;
-  LastName: string;
-  Company: string;
-  Title?: string;
-  Email?: string;
-  Phone?: string;
-  Status?: string;
-  LeadSource?: string;
-  CreatedDate?: string;
-}
+import type { CrmLead } from '@/lib/crm';
 
 export default function SalesforceTestPage() {
-  const [leads, setLeads] = useState<SalesforceLead[]>([]);
+  const [leads, setLeads] = useState<CrmLead[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
-    FirstName: '',
-    LastName: '',
-    Company: '',
-    Email: '',
-    Phone: '',
-    Title: '',
-    Status: 'Open - Not Contacted'
+    firstName: '',
+    lastName: '',
+    company: '',
+    email: '',
+    phone: '',
+    title: '',
+    status: 'Open - Not Contacted'
   });
 
-  // Fetch leads from Salesforce
+  // Fetch leads via the CRM abstraction
   const fetchLeads = async () => {
     setLoading(true);
     setError(null);
@@ -83,19 +71,19 @@ export default function SalesforceTestPage() {
 
       // Reset form
       setFormData({
-        FirstName: '',
-        LastName: '',
-        Company: '',
-        Email: '',
-        Phone: '',
-        Title: '',
-        Status: 'Open - Not Contacted'
+        firstName: '',
+        lastName: '',
+        company: '',
+        email: '',
+        phone: '',
+        title: '',
+        status: 'Open - Not Contacted'
       });
 
       // Refresh leads list
       await fetchLeads();
       
-      alert('Lead created successfully in Salesforce!');
+      alert('Lead created successfully through the CRM adapter!');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create lead');
       console.error('Error creating lead:', err);
@@ -113,10 +101,10 @@ export default function SalesforceTestPage() {
     <div className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight mb-2">
-          Salesforce Integration Test
+          CRM Integration Test
         </h1>
         <p className="text-muted-foreground">
-          Test the connection between your Next.js app and Salesforce using REST API
+          Test the connection between votre app Next.js et votre CRM via la surcouche d'abstraction
         </p>
       </div>
 
@@ -129,7 +117,7 @@ export default function SalesforceTestPage() {
               Create New Lead
             </CardTitle>
             <CardDescription>
-              Create a new lead in Salesforce
+              Create a new lead without dépendre du modèle Salesforce
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -139,8 +127,8 @@ export default function SalesforceTestPage() {
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
                     id="firstName"
-                    value={formData.FirstName}
-                    onChange={(e) => setFormData({ ...formData, FirstName: e.target.value })}
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                     placeholder="John"
                   />
                 </div>
@@ -149,8 +137,8 @@ export default function SalesforceTestPage() {
                   <Label htmlFor="lastName">Last Name *</Label>
                   <Input
                     id="lastName"
-                    value={formData.LastName}
-                    onChange={(e) => setFormData({ ...formData, LastName: e.target.value })}
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     placeholder="Doe"
                     required
                   />
@@ -161,8 +149,8 @@ export default function SalesforceTestPage() {
                 <Label htmlFor="company">Company *</Label>
                 <Input
                   id="company"
-                  value={formData.Company}
-                  onChange={(e) => setFormData({ ...formData, Company: e.target.value })}
+                  value={formData.company}
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="Acme Corporation"
                   required
                 />
@@ -172,8 +160,8 @@ export default function SalesforceTestPage() {
                 <Label htmlFor="title">Title</Label>
                 <Input
                   id="title"
-                  value={formData.Title}
-                  onChange={(e) => setFormData({ ...formData, Title: e.target.value })}
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="CEO"
                 />
               </div>
@@ -184,8 +172,8 @@ export default function SalesforceTestPage() {
                   <Input
                     id="email"
                     type="email"
-                    value={formData.Email}
-                    onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="john@acme.com"
                   />
                 </div>
@@ -195,8 +183,8 @@ export default function SalesforceTestPage() {
                   <Input
                     id="phone"
                     type="tel"
-                    value={formData.Phone}
-                    onChange={(e) => setFormData({ ...formData, Phone: e.target.value })}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     placeholder="+1 555 123 4567"
                   />
                 </div>
@@ -207,7 +195,7 @@ export default function SalesforceTestPage() {
                 className="w-full" 
                 disabled={creating}
               >
-                {creating ? 'Creating...' : 'Create Lead in Salesforce'}
+                {creating ? 'Creating...' : 'Create Lead'}
               </Button>
             </form>
           </CardContent>
@@ -218,9 +206,9 @@ export default function SalesforceTestPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Salesforce Leads</CardTitle>
+                <CardTitle>CRM Leads</CardTitle>
                 <CardDescription>
-                  {leads.length} lead{leads.length !== 1 ? 's' : ''} from Salesforce
+                  {leads.length} lead{leads.length !== 1 ? 's' : ''} via l'adaptateur CRM
                 </CardDescription>
               </div>
               <Button 
@@ -249,29 +237,29 @@ export default function SalesforceTestPage() {
               </div>
             ) : leads.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p>No leads found in Salesforce</p>
+                <p>No leads found in CRM</p>
                 <p className="text-sm mt-1">Create one using the form</p>
               </div>
             ) : (
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
                 {leads.map((lead) => (
                   <div
-                    key={lead.Id}
+                    key={lead.id}
                     className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <h3 className="font-semibold flex items-center gap-2">
                           <User className="h-4 w-4" />
-                          {lead.FirstName} {lead.LastName}
+                          {lead.firstName} {lead.lastName}
                         </h3>
-                        {lead.Title && (
-                          <p className="text-sm text-muted-foreground">{lead.Title}</p>
+                        {lead.title && (
+                          <p className="text-sm text-muted-foreground">{lead.title}</p>
                         )}
                       </div>
-                      {lead.Status && (
+                      {lead.status && (
                         <Badge variant="secondary" className="text-xs">
-                          {lead.Status}
+                          {lead.status}
                         </Badge>
                       )}
                     </div>
@@ -279,27 +267,27 @@ export default function SalesforceTestPage() {
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Building2 className="h-3 w-3" />
-                        <span>{lead.Company}</span>
+                        <span>{lead.company}</span>
                       </div>
-                      {lead.Email && (
+                      {lead.email && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Mail className="h-3 w-3" />
-                          <span>{lead.Email}</span>
+                          <span>{lead.email}</span>
                         </div>
                       )}
-                      {lead.Phone && (
+                      {lead.phone && (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Phone className="h-3 w-3" />
-                          <span>{lead.Phone}</span>
+                          <span>{lead.phone}</span>
                         </div>
                       )}
                     </div>
 
                     <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-                      ID: {lead.Id}
-                      {lead.CreatedDate && (
+                      ID: {lead.id}
+                      {lead.createdAt && (
                         <span className="ml-2">
-                          • Created: {new Date(lead.CreatedDate).toLocaleDateString()}
+                          • Created: {new Date(lead.createdAt).toLocaleDateString()}
                         </span>
                       )}
                     </div>

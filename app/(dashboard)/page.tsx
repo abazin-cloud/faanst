@@ -18,10 +18,11 @@ import { AddLeadDialog } from './add-lead-dialog';
 import { ShowroomHome } from './showroom-home';
 import { useShowroomMode } from '@/lib/showroom-mode-context';
 import { useEffect, useState } from 'react';
+import type { CrmLead } from '@/lib/crm';
 
 export default function DashboardPage() {
   const { isShowroomMode } = useShowroomMode();
-  const [leads, setLeads] = useState<any[]>([]);
+  const [leads, setLeads] = useState<CrmLead[]>([]);
   const [totalLeads, setTotalLeads] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -45,7 +46,7 @@ export default function DashboardPage() {
     if (!userEmail) return;
     
     try {
-      // Charger les leads depuis Salesforce avec filtre par propriétaire
+      // Charger les leads via la surcouche CRM avec filtre par propriétaire
       const response = await fetch(`/api/salesforce/leads?ownerEmail=${encodeURIComponent(userEmail)}&limit=5`);
       const data = await response.json();
       
@@ -85,7 +86,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Commercial Dashboard</h1>
           <p className="text-muted-foreground">
-            {userEmail ? `Mes données Salesforce (${userEmail})` : 'Chargement...'}
+            {userEmail ? `Mes données CRM (${userEmail})` : 'Chargement...'}
           </p>
         </div>
       </div>
@@ -199,24 +200,24 @@ export default function DashboardPage() {
                 </div>
               ) : leads.length > 0 ? (
                 leads.map((lead) => {
-                  const fullName = [lead.FirstName, lead.LastName].filter(Boolean).join(' ');
+                  const fullName = [lead.firstName, lead.lastName].filter(Boolean).join(' ');
                   return (
-                    <div key={lead.Id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+                    <div key={lead.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{lead.Company}</p>
+                          <p className="text-sm font-medium">{lead.company}</p>
                           <Badge variant={
-                            lead.Rating === 'Hot' ? 'destructive' : 
-                            lead.Rating === 'Warm' ? 'default' : 
+                            lead.rating === 'Hot' ? 'destructive' :
+                            lead.rating === 'Warm' ? 'default' :
                             'secondary'
                           }>
-                            {lead.Rating || 'Cold'}
+                            {lead.rating || 'Cold'}
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">{fullName}</p>
                       </div>
                       <Badge variant="outline" className="text-xs">
-                        {lead.Status || 'N/A'}
+                        {lead.status || 'N/A'}
                       </Badge>
                     </div>
                   );
